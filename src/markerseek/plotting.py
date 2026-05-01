@@ -628,6 +628,8 @@ def plot_pi_figure(
         {
             "font.family": _preferred_font_family(),
             "font.size": 6,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
             "axes.labelsize": 6.5,
             "xtick.labelsize": 5.8,
             "ytick.labelsize": 5.8,
@@ -1011,6 +1013,8 @@ def plot_similarity_figure(
         {
             "font.family": _preferred_font_family(),
             "font.size": 6,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
             "axes.labelsize": 6.0,
             "xtick.labelsize": 5.6,
             "ytick.labelsize": 5.0,
