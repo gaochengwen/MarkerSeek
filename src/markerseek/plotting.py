@@ -131,19 +131,15 @@ def select_label_windows(
     )
     chosen: list[WindowResult] = []
     chosen_labels: set[str] = set()
-    is_threshold_mode = hotspot_mode == "threshold"
     for window in ranked_candidates:
-        if not is_threshold_mode and window.label_name and window.label_name in chosen_labels:
+        if window.label_name and window.label_name in chosen_labels:
             continue
         nearby_selected = [
             selected
             for selected in chosen
             if abs(window.midpoint - selected.midpoint) < label_min_distance_bp
         ]
-        if is_threshold_mode:
-            if any(window.label_name and window.label_name == selected.label_name for selected in nearby_selected):
-                continue
-        elif nearby_selected:
+        if nearby_selected:
             continue
         chosen.append(window)
         if window.label_name:
