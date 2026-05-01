@@ -74,8 +74,6 @@ markerseek analyze test_data \
   --hotspot-mode threshold \
   --hotspot-value 0.04 \
   --label-mode peak-only \
-  --label-max 8 \
-  --label-min-distance 4000
 ```
 
 ## Key Parameters
