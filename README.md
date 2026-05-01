@@ -1,5 +1,4 @@
-<img src="MarkerSeek-logo.svg" width="300">
-# MarkerSeek
+<img src="MarkerSeek-logo.svg" width="500">
 
 MarkerSeek is a command-line toolkit for chloroplast nucleotide diversity analysis. It reads multiple annotated GenBank files, aligns the full plastomes with MAFFT, calculates site-wise and window-wise Pi values, summarises Pi for genes and intergenic spacers, labels high-polymorphism regions, and exports publication-style figures tuned for Nature-size layouts.
 
