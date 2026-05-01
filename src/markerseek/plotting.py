@@ -106,6 +106,7 @@ def _select_peak_windows(
 def select_label_windows(
     result: AnalysisResult,
     *,
+    hotspot_mode: str = "top-percent",
     label_mode: str,
     label_max: int | None,
     label_min_distance_bp: int,
@@ -130,10 +131,19 @@ def select_label_windows(
     )
     chosen: list[WindowResult] = []
     chosen_labels: set[str] = set()
+    is_threshold_mode = hotspot_mode == "threshold"
     for window in ranked_candidates:
-        if window.label_name and window.label_name in chosen_labels:
+        if not is_threshold_mode and window.label_name and window.label_name in chosen_labels:
             continue
-        if any(abs(window.midpoint - selected.midpoint) < label_min_distance_bp for selected in chosen):
+        nearby_selected = [
+            selected
+            for selected in chosen
+            if abs(window.midpoint - selected.midpoint) < label_min_distance_bp
+        ]
+        if is_threshold_mode:
+            if any(window.label_name and window.label_name == selected.label_name for selected in nearby_selected):
+                continue
+        elif nearby_selected:
             continue
         chosen.append(window)
         if window.label_name:
@@ -667,6 +677,7 @@ def plot_pi_figure(
 
     labeled_hotspots = select_label_windows(
         result,
+        hotspot_mode=hotspot_mode,
         label_mode=label_mode,
         label_max=label_max,
         label_min_distance_bp=label_min_distance_bp,
