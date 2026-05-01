@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_图层_1" data-name="图层_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 320 72">
+  <!-- Generator: Adobe Illustrator 29.0.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 192)  -->
+  <defs>
+    <style>
+      .st0 {
+        opacity: .3;
+        stroke: #1a4d8c;
+        stroke-width: 2px;
+      }
+
+      .st0, .st1, .st2, .st3 {
+        fill: none;
+        stroke-linecap: round;
+      }
+
+      .st0, .st4, .st5, .st6, .st7 {
+        isolation: isolate;
+      }
+
+      .st1 {
+        stroke-width: 2.5px;
+      }
+
+      .st1, .st2, .st3, .st8 {
+        stroke: #3a8fd4;
+      }
+
+      .st4 {
+        font-family: Helvetica, Helvetica;
+        font-size: 10px;
+        letter-spacing: .2em;
+        opacity: .4;
+      }
+
+      .st4, .st6 {
+        fill: #0d1520;
+      }
+
+      .st2 {
+        stroke-width: 2.6px;
+      }
+
+      .st6, .st7 {
+        font-family: HelveticaNeue-Medium, 'Helvetica Neue';
+        font-size: 30px;
+        font-weight: 500;
+        letter-spacing: 0em;
+      }
+
+      .st3 {
+        stroke-width: 1.3px;
+      }
+
+      .st9, .st7, .st8 {
+        fill: #3a8fd4;
+      }
+
+      .st8 {
+        fill-opacity: .1;
+        stroke-width: 2.2px;
+      }
+    </style>
+  </defs>
+  <g>
+    <path class="st0" d="M9,36c2,0,4-.2,6-.5s4-.2,6,.5"/>
+    <path class="st1" d="M21,36c2,0,3-7,5-10s4-3,6,0,3,10,5,10"/>
+    <path class="st0" d="M37,36h4"/>
+    <circle class="st8" cx="40" cy="30" r="8.5"/>
+    <line class="st2" x1="46.5" y1="36.5" x2="52" y2="42"/>
+    <circle class="st9" cx="40" cy="30" r="2"/>
+    <line class="st3" x1="40" y1="25.5" x2="40" y2="27.2"/>
+    <line class="st3" x1="40" y1="32.8" x2="40" y2="34.5"/>
+    <line class="st3" x1="35.5" y1="30" x2="37.2" y2="30"/>
+    <line class="st3" x1="42.8" y1="30" x2="44.5" y2="30"/>
+  </g>
+  <g class="st5">
+    <text class="st6" transform="translate(70 40)"><tspan x="0" y="0">Marker</tspan></text>
+    <text class="st7" transform="translate(161.3 40)"><tspan x="0" y="0">Seek</tspan></text>
+  </g>
+  <text class="st4" transform="translate(71 57)"><tspan x="0" y="0">Plastome diversity analyzer</tspan></text>
+</svg>
