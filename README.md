@@ -85,8 +85,8 @@ markerseek analyze test_data \
 - `--label-mode`: `peak-only`, `all`, or `none`. Default `peak-only` shows one label per cluster of consecutive hotspot windows.
 - `--label-max`: maximum number of hotspot labels drawn on the Pi figure. Default: no limit.
 - `--label-min-distance`: minimum midpoint spacing in bp between labeled hotspots. Default `0` (label every peak above the threshold).
-- `--similarity-window`: window size in bp for the similarity figure. Default `100`.
-- `--similarity-step`: step size in bp for the similarity figure. Default `20`.
+- `--similarity-window`: window size in bp for the similarity figure. Default `200`.
+- `--similarity-step`: step size in bp for the similarity figure. Default `60`.
 - `--similarity-floor`: lower bound of the similarity y-axis (fraction in 0–1). Default `0.5`.
 - `--no-similarity-plot`: skip generating `similarity_plot.{pdf,png}`.
 - `--mafft-bin`: MAFFT executable or absolute path. Default `mafft`.
