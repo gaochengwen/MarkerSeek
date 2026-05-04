@@ -1,0 +1,154 @@
+from __future__ import annotations
+
+import sqlite3
+import re
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from markerseek.web import app as web_app
+
+
+def test_parse_job_params_validates_mafft_threads(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(web_app.os, "cpu_count", lambda: 4)
+    form = web_app.default_form_values()
+    form["mafft_threads"] = "5"
+
+    with pytest.raises(ValueError, match="cannot exceed"):
+        web_app.parse_job_params(form)
+
+
+def test_default_similarity_values_match_web_defaults() -> None:
+    values = web_app.default_form_values()
+
+    assert values["similarity_window"] == "200"
+    assert values["similarity_step"] == "60"
+
+
+def test_save_filename_strips_path_and_unsafe_characters() -> None:
+    assert web_app.safe_filename("../../bad name.gb") == "bad_name.gb"
+    assert web_app.safe_filename("") == "input.gb"
+
+
+def test_generate_job_id_uses_compact_public_format(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = web_app.WebSettings()
+    settings.data_dir = tmp_path
+    monkeypatch.setattr(web_app, "settings", settings)
+    web_app.init_db()
+
+    job_id = web_app.generate_job_id()
+
+    assert re.fullmatch(r"MSK-\d{15}", job_id)
+
+
+def test_download_file_rejects_non_whitelisted_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = web_app.WebSettings()
+    settings.data_dir = tmp_path
+    monkeypatch.setattr(web_app, "settings", settings)
+    web_app.init_db()
+
+    job_id = "MSK-20260501-ABCDEF12"
+    outdir = web_app.outputs_dir(job_id)
+    outdir.mkdir(parents=True)
+    (outdir / "secret.txt").write_text("private", encoding="utf-8")
+    (outdir / "job.json").write_text("{}", encoding="utf-8")
+    (outdir / "run.log").write_text("log", encoding="utf-8")
+    now = web_app.isoformat(web_app.utcnow())
+    with sqlite3.connect(settings.db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO jobs (
+                job_id, status, project_name, created_at, updated_at, expires_at,
+                params_json, input_files_json
+            )
+            VALUES (?, 'succeeded', 'test', ?, ?, ?, '{}', '[]')
+            """,
+            (job_id, now, now, now),
+        )
+        conn.commit()
+
+    client = TestClient(web_app.app)
+    response = client.get(f"/analyzer/results/{job_id}/download/secret.txt")
+    job_json_response = client.get(f"/analyzer/results/{job_id}/download/job.json")
+    run_log_response = client.get(f"/analyzer/results/{job_id}/download/run.log")
+
+    assert response.status_code == 404
+    assert job_json_response.status_code == 404
+    assert run_log_response.status_code == 404
+
+
+def test_runtime_estimate_uses_uploaded_size_and_queue(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = web_app.WebSettings()
+    settings.data_dir = tmp_path
+    monkeypatch.setattr(web_app, "settings", settings)
+    monkeypatch.setattr(web_app.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(web_app.os, "getloadavg", lambda: (0.0, 0.0, 0.0))
+    web_app.init_db()
+
+    params = web_app.parse_job_params(web_app.default_form_values())
+    web_app.create_job_record(
+        job_id="MSK-202605020000002",
+        project_name="test",
+        params=params,
+        input_files=["a.gb", "b.gb"],
+        reference_file=None,
+    )
+    input_dir = web_app.inputs_dir("MSK-202605020000002")
+    input_dir.mkdir(parents=True)
+    (input_dir / "a.gb").write_bytes(b"A" * 1024)
+    (input_dir / "b.gb").write_bytes(b"C" * 1024)
+
+    job = web_app.row_to_job(web_app.get_job("MSK-202605020000002"))
+    estimate = web_app.estimate_job_runtime(job)
+
+    assert estimate["primary_label"] == "Estimated time to completion"
+    assert estimate["data_text"] == "2 files, 2.0 KB uploaded"
+    assert estimate["queue_text"] == "0 jobs ahead"
+    assert estimate["server_text"] == "0 running, 1 queued; 4 CPU cores, normal load"
+
+
+def test_result_page_hides_internal_parameters(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = web_app.WebSettings()
+    settings.data_dir = tmp_path
+    monkeypatch.setattr(web_app, "settings", settings)
+    web_app.init_db()
+
+    params = {
+        "window": 600,
+        "step": 200,
+        "hotspot_mode": "top-percent",
+        "hotspot_value": 3.0,
+        "label_mode": "peak-only",
+        "label_max": None,
+        "label_min_distance": 0,
+        "similarity_window": 200,
+        "similarity_step": 60,
+        "similarity_floor": 0.5,
+        "no_similarity_plot": False,
+        "mafft_threads": 4,
+    }
+    web_app.create_job_record(
+        job_id="MSK-202605020000001",
+        project_name="test",
+        params=params,
+        input_files=["a.gb", "b.gb"],
+        reference_file=None,
+    )
+
+    client = TestClient(web_app.app)
+    response = client.get("/analyzer/results/MSK-202605020000001")
+
+    assert response.status_code == 200
+    assert "Estimated Runtime" in response.text
+    assert response.text.index("hotspot_value") < response.text.index("hotspot_window")
+    assert response.text.index("hotspot_window") < response.text.index("hotspot_step")
+    assert "<dt>window</dt>" not in response.text
+    assert "<dt>step</dt>" not in response.text
+    assert "similarity_window" in response.text
+    assert "similarity_step" in response.text
+    assert "label_max" not in response.text
+    assert "label_min_distance" not in response.text
+    assert "label_mode" not in response.text
+    assert "mafft_threads" not in response.text
+    assert "similarity_floor" not in response.text
