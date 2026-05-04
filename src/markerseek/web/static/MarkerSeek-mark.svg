@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 62 72">
+  <defs>
+    <style>
+      .wave-soft { opacity: .3; stroke: #1a4d8c; stroke-width: 2px; }
+      .wave-soft, .wave-main, .lens-line, .tick { fill: none; stroke-linecap: round; }
+      .wave-main, .lens-line, .tick, .lens { stroke: #3a8fd4; }
+      .wave-main { stroke-width: 2.5px; }
+      .lens-line { stroke-width: 2.6px; }
+      .tick { stroke-width: 1.3px; }
+      .lens { fill: #3a8fd4; fill-opacity: .1; stroke-width: 2.2px; }
+      .dot { fill: #3a8fd4; }
+    </style>
+  </defs>
+  <path class="wave-soft" d="M9,36c2,0,4-.2,6-.5s4-.2,6,.5"/>
+  <path class="wave-main" d="M21,36c2,0,3-7,5-10s4-3,6,0,3,10,5,10"/>
+  <path class="wave-soft" d="M37,36h4"/>
+  <circle class="lens" cx="40" cy="30" r="8.5"/>
+  <line class="lens-line" x1="46.5" y1="36.5" x2="52" y2="42"/>
+  <circle class="dot" cx="40" cy="30" r="2"/>
+  <line class="tick" x1="40" y1="25.5" x2="40" y2="27.2"/>
+  <line class="tick" x1="40" y1="32.8" x2="40" y2="34.5"/>
+  <line class="tick" x1="35.5" y1="30" x2="37.2" y2="30"/>
+  <line class="tick" x1="42.8" y1="30" x2="44.5" y2="30"/>
+</svg>

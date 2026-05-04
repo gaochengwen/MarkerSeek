@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Help - MarkerSeek{% endblock %}
+{% block content %}
+<section class="narrow-page">
+  <div class="section-heading">
+    <h1>Help</h1>
+    <p>MarkerSeek computes nucleotide diversity across annotated chloroplast GenBank files.</p>
+  </div>
+  <section class="form-section">
+    <h2>Input requirements</h2>
+    <ul class="plain-list">
+      <li>Upload {{ max_files }} or fewer GenBank files with .gb, .gbk, or .genbank extensions.</li>
+      <li>At least two files are required for nucleotide diversity analysis.</li>
+      <li>Total upload size is limited to {{ max_upload_mb }} MB.</li>
+    </ul>
+  </section>
+  <section class="form-section">
+    <h2>Results</h2>
+    <ul class="plain-list">
+      <li>Each submission returns a job ID for status checks and downloads.</li>
+      <li>Successful jobs include Pi tables, feature tables, PDF figures, PNG previews, and a ZIP archive.</li>
+      <li>Files are retained for {{ retention_days }} days.</li>
+    </ul>
+  </section>
+</section>
+{% endblock %}

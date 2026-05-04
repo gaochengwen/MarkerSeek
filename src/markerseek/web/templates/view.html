@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}View Results - MarkerSeek{% endblock %}
+{% block content %}
+<section class="narrow-page">
+  <div class="section-heading">
+    <h1>Retrieve analysis results</h1>
+    <p>Enter the MarkerSeek job ID returned after submission.</p>
+  </div>
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+  <form class="lookup-form" method="post" action="/analyzer/view">
+    <label class="field">
+      <span>Job ID</span>
+      <input type="text" name="projectid" placeholder="MSK-YYYYMMDD#######" autocomplete="off">
+    </label>
+    <button type="submit">View results</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% if refresh %}<meta http-equiv="refresh" content="30">{% endif %}
+  {% block head_extra %}{% endblock %}
+  <title>{% block title %}MarkerSeek Analyzer{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=radius20">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/markerseek">
+        <img class="brand-logo" src="{{ url_for('static', path='MarkerSeek-logo.svg') }}" alt="MarkerSeek">
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/markerseek">Analyze</a>
+        <a href="/analyzer/view">View Results</a>
+        <a href="/analyzer/help">Help</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <span>MarkerSeek web server</span>
+    <span>For questions and comments, please send email to <a href="mailto:gaochengwen@qdu.edu.cn">gaochengwen@qdu.edu.cn</a>.</span>
+  </footer>
+</body>
+</html>
