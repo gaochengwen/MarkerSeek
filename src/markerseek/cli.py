@@ -116,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     primer_group = analyze.add_argument_group("Primer design")
     primer_group.add_argument("--primer-design", action="store_true", help="Design primers for hotspot regions.")
     primer_group.add_argument("--primer-tm-min", type=positive_float, default=52.0, help="Minimum primer Tm.")
-    primer_group.add_argument("--primer-tm-max", type=positive_float, default=68.0, help="Maximum primer Tm.")
+    primer_group.add_argument("--primer-tm-max", type=positive_float, default=70.0, help="Maximum primer Tm.")
     primer_group.add_argument("--primer-tm-opt", type=positive_float, default=58.0, help="Optimal primer Tm.")
     primer_group.add_argument("--primer-len-min", type=positive_int, default=18, help="Minimum primer length.")
     primer_group.add_argument("--primer-len-max", type=positive_int, default=27, help="Maximum primer length.")

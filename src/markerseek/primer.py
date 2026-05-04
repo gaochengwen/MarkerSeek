@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 CANONICAL_BASES = frozenset("ACGT")
 DNA_COMPLEMENT = str.maketrans("ACGTN", "TGCAN")
+FALLBACK_FLANK_SCAN_BP = 500
 
 
 @dataclass(frozen=True)
@@ -68,7 +69,7 @@ def find_conserved_flanks(
     max_scan: int = 300,
     min_len: int = 18,
     max_len: int = 24,
-    identity_threshold: float = 0.90,
+    identity_threshold: float = 0.85,
 ) -> tuple[FlankCandidate | None, FlankCandidate | None]:
     """Find conserved flanks immediately outside a target interval."""
 
@@ -104,6 +105,28 @@ def find_conserved_flanks(
         max_len=max_len,
         identity_threshold=identity_threshold,
     )
+    if max_scan < FALLBACK_FLANK_SCAN_BP and (left is None or right is None):
+        if left is None:
+            left = _scan_left_flank(
+                aligned_block,
+                conserved_mask,
+                target_start,
+                max_scan=FALLBACK_FLANK_SCAN_BP,
+                min_len=min_len,
+                max_len=max_len,
+                identity_threshold=identity_threshold,
+            )
+        if right is None:
+            right = _scan_right_flank(
+                aligned_block,
+                conserved_mask,
+                target_end,
+                genome_length,
+                max_scan=FALLBACK_FLANK_SCAN_BP,
+                min_len=min_len,
+                max_len=max_len,
+                identity_threshold=identity_threshold,
+            )
     return left, right
 
 
@@ -141,9 +164,9 @@ def design_primers_for_region(
         "PRIMER_MAX_SIZE": 27,
         "PRIMER_OPT_TM": 58.0,
         "PRIMER_MIN_TM": 52.0,
-        "PRIMER_MAX_TM": 68.0,
+        "PRIMER_MAX_TM": 70.0,
         "PRIMER_OPT_GC_PERCENT": 50.0,
-        "PRIMER_MIN_GC": 30.0,
+        "PRIMER_MIN_GC": 25.0,
         "PRIMER_MAX_GC": 70.0,
         "PRIMER_PRODUCT_SIZE_RANGE": [[80, 3000]],
         "PRIMER_NUM_RETURN": max_pairs,
