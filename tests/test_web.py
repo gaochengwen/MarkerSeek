@@ -78,6 +78,39 @@ def test_download_file_rejects_non_whitelisted_output(tmp_path: Path, monkeypatc
     assert run_log_response.status_code == 404
 
 
+def test_download_marker_features_tsv_whitelisted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = web_app.WebSettings()
+    settings.data_dir = tmp_path
+    monkeypatch.setattr(web_app, "settings", settings)
+    web_app.init_db()
+
+    job_id = "MSK-202605010000001"
+    outdir = web_app.outputs_dir(job_id)
+    outdir.mkdir(parents=True)
+    (outdir / "Marker_features.tsv").write_text("feature_id\n", encoding="utf-8")
+    (outdir / "pi_features.tsv").write_text("feature_id\n", encoding="utf-8")
+    now = web_app.isoformat(web_app.utcnow())
+    with sqlite3.connect(settings.db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO jobs (
+                job_id, status, project_name, created_at, updated_at, expires_at,
+                params_json, input_files_json
+            )
+            VALUES (?, 'succeeded', 'test', ?, ?, ?, '{}', '[]')
+            """,
+            (job_id, now, now, now),
+        )
+        conn.commit()
+
+    client = TestClient(web_app.app)
+    marker_response = client.get(f"/analyzer/results/{job_id}/download/Marker_features.tsv")
+    old_response = client.get(f"/analyzer/results/{job_id}/download/pi_features.tsv")
+
+    assert marker_response.status_code == 200
+    assert old_response.status_code == 404
+
+
 def test_runtime_estimate_uses_uploaded_size_and_queue(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     settings = web_app.WebSettings()
     settings.data_dir = tmp_path
