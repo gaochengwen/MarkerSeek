@@ -82,6 +82,10 @@
         </label>
       </div>
       <p class="parameter-note">Defaults suit plastome Pi plots and support finer or smoother hotspot detection.</p>
+      <label class="check-field">
+        <input type="checkbox" name="primer_design" {% if values.primer_design == "on" %}checked{% endif %}>
+        <span>Design primers for hotspot regions</span>
+      </label>
     </div>
     <input type="hidden" name="mafft_threads" value="{{ values.mafft_threads }}">
     <input type="hidden" name="similarity_floor" value="{{ values.similarity_floor }}">

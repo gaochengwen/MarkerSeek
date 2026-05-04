@@ -262,6 +262,7 @@ def parse_job_params(form: dict[str, str]) -> dict[str, Any]:
         "similarity_step": parse_int(form["similarity_step"], "Similarity step", minimum=1),
         "similarity_floor": parse_float(form["similarity_floor"], "Similarity floor", minimum=0.0, maximum=1.0),
         "no_similarity_plot": form.get("no_similarity_plot") == "on",
+        "primer_design": form.get("primer_design") == "on",
         "mafft_threads": mafft_threads,
     }
 
@@ -281,6 +282,7 @@ def default_form_values() -> dict[str, str]:
         "similarity_floor": "0.5",
         "mafft_threads": str(DEFAULT_MAFFT_THREADS),
         "no_similarity_plot": "",
+        "primer_design": "",
     }
 
 
@@ -313,6 +315,7 @@ def display_job_params(params: dict[str, Any]) -> list[tuple[str, Any]]:
         "step",
         "similarity_window",
         "similarity_step",
+        "primer_design",
         "no_similarity_plot",
     ]
     ordered_keys = [key for key in priority if key in params]
@@ -662,6 +665,7 @@ def run_job(job_id: str) -> None:
             hotspot_value=params["hotspot_value"],
             mafft_bin=settings.mafft_bin,
             mafft_threads=params["mafft_threads"],
+            primer_design=params.get("primer_design", False),
         )
         write_analysis_outputs(
             result,
@@ -675,6 +679,8 @@ def run_job(job_id: str) -> None:
             similarity_step=params["similarity_step"],
             similarity_floor=params["similarity_floor"],
             include_similarity_plot=not params["no_similarity_plot"],
+            primer_design=params.get("primer_design", False),
+            mafft_bin=settings.mafft_bin,
         )
         summary = {
             "job_id": job_id,
@@ -692,6 +698,7 @@ def run_job(job_id: str) -> None:
             "window_count": len(result.windows),
             "hotspot_window_count": sum(1 for window in result.windows if window.is_hotspot),
             "feature_count": len(result.features),
+            "primer_pair_count": len(result.primers),
         }
         write_json(output_dir / "job.json", summary)
         append_log(job_id, "Analysis completed successfully.")
@@ -766,6 +773,7 @@ async def submit_job(
     similarity_step: str = Form("60"),
     similarity_floor: str = Form("0.5"),
     no_similarity_plot: str | None = Form(None),
+    primer_design: str | None = Form(None),
     mafft_threads: str = Form(str(DEFAULT_MAFFT_THREADS)),
 ) -> Response:
     form_values = {
@@ -781,6 +789,7 @@ async def submit_job(
         "similarity_step": similarity_step,
         "similarity_floor": similarity_floor,
         "no_similarity_plot": no_similarity_plot or "",
+        "primer_design": primer_design or "",
         "mafft_threads": mafft_threads,
     }
     if len(files) < MIN_FILES or len(files) > MAX_FILES:

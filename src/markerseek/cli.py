@@ -28,6 +28,16 @@ def nonnegative_int(raw_value: str) -> int:
     return value
 
 
+def positive_float(raw_value: str) -> float:
+    try:
+        value = float(raw_value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Value must be a number.") from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError("Value must be greater than zero.")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="markerseek", description="Pi analysis for chloroplast GenBank files.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -103,6 +113,19 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--ssc", help="Manual region override in 1-based inclusive form start:end.")
     analyze.add_argument("--ira", help="Manual region override in 1-based inclusive form start:end.")
 
+    primer_group = analyze.add_argument_group("Primer design")
+    primer_group.add_argument("--primer-design", action="store_true", help="Design primers for hotspot regions.")
+    primer_group.add_argument("--primer-tm-min", type=positive_float, default=55.0, help="Minimum primer Tm.")
+    primer_group.add_argument("--primer-tm-max", type=positive_float, default=65.0, help="Maximum primer Tm.")
+    primer_group.add_argument("--primer-tm-opt", type=positive_float, default=60.0, help="Optimal primer Tm.")
+    primer_group.add_argument("--primer-len-min", type=positive_int, default=18, help="Minimum primer length.")
+    primer_group.add_argument("--primer-len-max", type=positive_int, default=25, help="Maximum primer length.")
+    primer_group.add_argument("--primer-len-opt", type=positive_int, default=20, help="Optimal primer length.")
+    primer_group.add_argument("--primer-amplicon-min", type=positive_int, default=80, help="Minimum amplicon length.")
+    primer_group.add_argument("--primer-amplicon-max", type=positive_int, default=3000, help="Maximum amplicon length.")
+    primer_group.add_argument("--primer-mismatch", type=nonnegative_int, default=1, help="Allowed primer mismatches.")
+    primer_group.add_argument("--primer-anchor-bp", type=positive_int, default=5, help="Exact 3-prime anchor length.")
+
     return parser
 
 
@@ -130,6 +153,33 @@ def manual_regions_from_args(args: argparse.Namespace) -> dict[str, tuple[int, i
     return {name: parse_manual_region(text) for name, text in region_text.items()}
 
 
+def primer_settings_from_args(args: argparse.Namespace) -> dict:
+    if args.primer_tm_min > args.primer_tm_max:
+        raise MarkerSeekError("--primer-tm-min cannot exceed --primer-tm-max.")
+    if args.primer_len_min > args.primer_len_max:
+        raise MarkerSeekError("--primer-len-min cannot exceed --primer-len-max.")
+    if args.primer_amplicon_min > args.primer_amplicon_max:
+        raise MarkerSeekError("--primer-amplicon-min cannot exceed --primer-amplicon-max.")
+    return {
+        "PRIMER_MIN_TM": args.primer_tm_min,
+        "PRIMER_MAX_TM": args.primer_tm_max,
+        "PRIMER_OPT_TM": args.primer_tm_opt,
+        "PRIMER_MIN_SIZE": args.primer_len_min,
+        "PRIMER_MAX_SIZE": args.primer_len_max,
+        "PRIMER_OPT_SIZE": args.primer_len_opt,
+        "PRIMER_PRODUCT_SIZE_RANGE": [[args.primer_amplicon_min, args.primer_amplicon_max]],
+    }
+
+
+def in_silico_settings_from_args(args: argparse.Namespace) -> dict:
+    return {
+        "min_amplicon": args.primer_amplicon_min,
+        "max_amplicon": args.primer_amplicon_max,
+        "max_mismatch": args.primer_mismatch,
+        "anchor_3prime": args.primer_anchor_bp,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -148,6 +198,9 @@ def main(argv: list[str] | None = None) -> int:
             mafft_bin=args.mafft_bin,
             mafft_threads=args.mafft_threads,
             manual_regions=manual_regions_from_args(args),
+            primer_design=args.primer_design,
+            primer_settings=primer_settings_from_args(args),
+            in_silico_settings=in_silico_settings_from_args(args),
         )
     except MarkerSeekError as exc:
         parser.exit(2, f"Error: {exc}\n")
@@ -164,5 +217,7 @@ def main(argv: list[str] | None = None) -> int:
         similarity_step=args.similarity_step,
         similarity_floor=args.similarity_floor,
         include_similarity_plot=not args.no_similarity_plot,
+        primer_design=args.primer_design,
+        mafft_bin=args.mafft_bin,
     )
     return 0
