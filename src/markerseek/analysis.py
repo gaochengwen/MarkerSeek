@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Iterable
 
 from Bio import SeqIO
+from Bio.Seq import Seq
 from Bio.SeqFeature import CompoundLocation
 from Bio.SeqRecord import SeqRecord
 
@@ -27,7 +28,23 @@ from .diagnostics import (
     species_resolution,
     species_specific_haplotype_ratio,
 )
-from .models import AnalysisResult, AnnotatedInterval, FeatureResult, RegionSegment, SampleMetadata, WindowResult
+from .models import (
+    AnalysisResult,
+    AnnotatedInterval,
+    FeatureResult,
+    PrimerResult,
+    RegionSegment,
+    SampleMetadata,
+    WindowResult,
+)
+from .primer import (
+    AmpliconHit,
+    PrimerPair,
+    design_primers_for_region,
+    find_conserved_flanks,
+    in_silico_pcr,
+    score_primer_pair,
+)
 from .scoring import DEFAULT_WEIGHTS, compute_score, length_suitability
 from .species import build_sample_metadata
 
@@ -76,6 +93,9 @@ def run_analysis(
     mafft_bin: str = "mafft",
     mafft_threads: int | None = None,
     manual_regions: dict[str, tuple[int, int]] | None = None,
+    primer_design: bool = False,
+    primer_settings: dict | None = None,
+    in_silico_settings: dict | None = None,
 ) -> AnalysisResult:
     """Run the full GenBank-to-Pi workflow and return structured results."""
 
@@ -156,7 +176,17 @@ def run_analysis(
     sample_metadata = build_sample_metadata(genome_records, result.sample_order)
     result.sample_metadata = sample_metadata
     result.score_weights = dict(DEFAULT_WEIGHTS)
-    enrich_features_with_diagnostics(result, result.aligned_sequences, sample_metadata)
+    conserved_mask = enrich_features_with_diagnostics(result, result.aligned_sequences, sample_metadata)
+    if primer_design:
+        effective_in_silico_settings = dict(in_silico_settings or {})
+        effective_in_silico_settings.setdefault("mafft_bin", mafft_bin)
+        design_primers_for_hotspots(
+            result,
+            genome_records,
+            primer_settings or {},
+            effective_in_silico_settings,
+            conserved_mask=conserved_mask,
+        )
     return result
 
 
@@ -164,7 +194,7 @@ def enrich_features_with_diagnostics(
     result: AnalysisResult,
     aligned_sequences: dict[str, str],
     sample_metadata: list[SampleMetadata],
-) -> None:
+) -> list[bool]:
     """Fill feature-level SNP, haplotype, divergence, flank, and score diagnostics."""
 
     species_map = {metadata.sample_name: metadata.species for metadata in sample_metadata}
@@ -210,6 +240,196 @@ def enrich_features_with_diagnostics(
             "length_suitability": length_suitability(feature.length_bp),
         }
         feature.markerseek_score = compute_score(metrics, result.score_weights or DEFAULT_WEIGHTS)
+    return conserved_mask
+
+
+def design_primers_for_hotspots(
+    result: AnalysisResult,
+    raw_records: list["GenomeInput"],
+    primer_settings: dict | None,
+    in_silico_settings: dict | None,
+    *,
+    conserved_mask: list[bool] | None = None,
+) -> None:
+    """Design primers for every hotspot feature and attach scored results."""
+
+    result.primers.clear()
+    result.primer_amplicons.clear()
+    for feature in result.features:
+        feature.primer_available = "no"
+
+    hotspots = [feature for feature in result.features if feature.is_hotspot]
+    if not hotspots:
+        return
+
+    reference_record = next(
+        (record for record in raw_records if record.sample_name == result.reference_name),
+        None,
+    )
+    if reference_record is None:
+        raise MarkerSeekError("Reference record is unavailable for primer design.")
+
+    reference_seq = str(reference_record.record.seq).upper().replace("-", "").replace(".", "")
+    sample_seqs = {
+        record.sample_name: str(record.record.seq).upper().replace("-", "").replace(".", "")
+        for record in raw_records
+    }
+    total_samples = len(sample_seqs)
+    if total_samples == 0:
+        return
+
+    effective_primer_settings = dict(primer_settings or {})
+    effective_in_silico_settings = dict(in_silico_settings or {})
+    max_pairs = int(effective_primer_settings.get("PRIMER_NUM_RETURN", 5))
+    min_amplicon = int(effective_in_silico_settings.get("min_amplicon", 80))
+    max_amplicon = int(effective_in_silico_settings.get("max_amplicon", 3000))
+    max_mismatch = int(effective_in_silico_settings.get("max_mismatch", 1))
+    anchor_3prime = int(effective_in_silico_settings.get("anchor_3prime", 5))
+    flank_max_len = int(effective_in_silico_settings.get("flank_max_len", 120))
+    mafft_bin = str(effective_in_silico_settings.get("mafft_bin", "mafft"))
+    mask = conserved_mask if conserved_mask is not None else conserved_column_mask(result.aligned_sequences)
+
+    for feature in hotspots:
+        if feature.spans_origin:
+            continue
+        target_start = feature.start - 1
+        target_end = feature.end
+        left_flank, right_flank = find_conserved_flanks(
+            result.aligned_sequences,
+            mask,
+            target_start,
+            target_end,
+            max_len=flank_max_len,
+        )
+        if left_flank is None or right_flank is None:
+            continue
+
+        primer_pairs = design_primers_for_region(
+            reference_seq,
+            target_start,
+            target_end,
+            left_flank,
+            right_flank,
+            max_pairs=max_pairs,
+            primer_settings=effective_primer_settings,
+        )
+        scored_pairs: list[tuple[PrimerPair, dict[str, str]]] = []
+        for pair in primer_pairs:
+            hits = in_silico_pcr(
+                pair.fwd_seq,
+                pair.rev_seq,
+                sample_seqs,
+                min_amplicon=min_amplicon,
+                max_amplicon=max_amplicon,
+                max_mismatch=max_mismatch,
+                anchor_3prime=anchor_3prime,
+            )
+            successful_amplicons = _successful_amplicons(hits, result.sample_order)
+            if not successful_amplicons:
+                score_primer_pair(pair, hits, total_samples)
+                continue
+
+            lengths = [len(sequence) for sequence in successful_amplicons.values()]
+            pair.amplicon_min_len = min(lengths)
+            pair.amplicon_max_len = max(lengths)
+            pair.amplicon_mean_len = sum(lengths) / len(lengths)
+            pair.amplicon_variable_sites, pair.amplicon_indel_sites = _amplicon_site_counts(
+                successful_amplicons,
+                mafft_bin,
+            )
+            score_primer_pair(pair, hits, total_samples)
+            if pair.primer_score > 0:
+                scored_pairs.append((pair, successful_amplicons))
+
+        if not scored_pairs:
+            continue
+
+        scored_pairs.sort(
+            key=lambda item: (
+                -item[0].primer_score,
+                -item[0].cross_species_success_rate,
+                item[0].primer3_penalty,
+                item[0].fwd_seq,
+                item[0].rev_seq,
+            )
+        )
+        feature.primer_available = "yes"
+        for rank, (pair, amplicons) in enumerate(scored_pairs, start=1):
+            pair.rank = rank
+            pair_id = f"{feature.feature_id}_p{rank}"
+            result.primers.append(_primer_result(feature.feature_id, pair_id, pair))
+            result.primer_amplicons[pair_id] = amplicons
+
+
+def _successful_amplicons(
+    hits: dict[str, AmpliconHit | None],
+    sample_order: list[str],
+) -> dict[str, str]:
+    ordered_names = sample_order or sorted(hits)
+    return {
+        sample_name: hits[sample_name].amplicon_seq
+        for sample_name in ordered_names
+        if sample_name in hits and hits[sample_name] is not None and not hits[sample_name].multiple_hits
+    }
+
+
+def _amplicon_site_counts(amplicons: dict[str, str], mafft_bin: str) -> tuple[int, int]:
+    if len(amplicons) < 2:
+        return 0, 0
+    lengths = {len(sequence) for sequence in amplicons.values()}
+    aligned_amplicons = amplicons if len(lengths) == 1 else _align_amplicons_for_stats(amplicons, mafft_bin)
+    return count_variable_and_indel_sites(aligned_amplicons)
+
+
+def _align_amplicons_for_stats(amplicons: dict[str, str], mafft_bin: str) -> dict[str, str]:
+    with tempfile.TemporaryDirectory(prefix="markerseek_primer_stats_") as tmpdir:
+        fasta_path = Path(tmpdir) / "amplicons.fasta"
+        records = [
+            SeqRecord(Seq(sequence), id=sample_name, name=sample_name, description="")
+            for sample_name, sequence in amplicons.items()
+        ]
+        SeqIO.write(records, fasta_path, "fasta")
+        mafft_path = Path(mafft_bin)
+        if mafft_path.exists() and mafft_path.suffix == ".py":
+            command = [sys.executable, str(mafft_path), "--auto", str(fasta_path)]
+        else:
+            command = [mafft_bin, "--auto", str(fasta_path)]
+        try:
+            completed = subprocess.run(command, check=True, capture_output=True, text=True)
+        except FileNotFoundError as exc:
+            raise MarkerSeekError(f"MAFFT executable was not found: {mafft_bin}") from exc
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.strip() or exc.stdout.strip()
+            raise MarkerSeekError(f"MAFFT failed while aligning primer amplicons: {stderr}") from exc
+    return {record.id: str(record.seq).upper() for record in SeqIO.parse(StringIO(completed.stdout), "fasta")}
+
+
+def _primer_result(feature_id: str, pair_id: str, pair: PrimerPair) -> PrimerResult:
+    return PrimerResult(
+        pair_id=pair_id,
+        feature_id=feature_id,
+        rank=pair.rank,
+        fwd_seq=pair.fwd_seq,
+        rev_seq=pair.rev_seq,
+        fwd_len=pair.fwd_len,
+        rev_len=pair.rev_len,
+        fwd_gc=round(pair.fwd_gc, 1),
+        rev_gc=round(pair.rev_gc, 1),
+        fwd_tm=round(pair.fwd_tm, 1),
+        rev_tm=round(pair.rev_tm, 1),
+        fwd_self_any_th=round(pair.fwd_self_any_th, 1),
+        rev_self_any_th=round(pair.rev_self_any_th, 1),
+        primer3_penalty=pair.primer3_penalty,
+        target_start=pair.target_start + 1,
+        target_end=pair.target_end,
+        amplicon_min_len=pair.amplicon_min_len,
+        amplicon_max_len=pair.amplicon_max_len,
+        amplicon_mean_len=round(pair.amplicon_mean_len, 1),
+        cross_species_success_rate=round(pair.cross_species_success_rate, 6),
+        amplicon_variable_sites=pair.amplicon_variable_sites,
+        amplicon_indel_sites=pair.amplicon_indel_sites,
+        primer_score=round(pair.primer_score, 1),
+    )
 
 
 def slice_aligned_block(aligned_sequences: dict[str, str], spans: list[tuple[int, int]]) -> dict[str, str]:
