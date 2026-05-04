@@ -7,11 +7,14 @@ import json
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from .models import AnalysisResult
+from .diagnostics import CANONICAL_BASES
+from .models import AnalysisResult, FeatureResult, PrimerResult
 from .plotting import plot_pi_figure, plot_primer_summary, plot_similarity_figure
+from .visualisation import compute_haplotype_network, compute_species_pca
 
 RESULT_FILENAMES = (
     "pi_windows.tsv",
@@ -224,6 +227,50 @@ def write_primers_tsv(path: Path, primers) -> None:
             )
 
 
+def write_feature_payloads(outdir: str | Path, result: AnalysisResult) -> None:
+    """Persist internal JSON payloads for hotspot feature detail pages."""
+
+    output_dir = Path(outdir).resolve()
+    payload_dir = output_dir / "feature_payload"
+    payload_dir.mkdir(parents=True, exist_ok=True)
+    for stale_payload in payload_dir.glob("*.json"):
+        stale_payload.unlink()
+
+    species_map = {metadata.sample_name: metadata.species for metadata in result.sample_metadata}
+    for feature in marker_feature_rows(result.features):
+        if not feature.is_hotspot:
+            continue
+
+        spans = feature.spans(result.genome_length)
+        aligned_block = _slice_aligned_block(result.aligned_sequences, spans)
+        positions = _feature_positions(spans)
+        snp_positions, indel_positions = _site_positions(aligned_block, positions)
+        haplotypes = {
+            sample_name: feature.haplotypes[index] if index < len(feature.haplotypes) else "NA"
+            for index, sample_name in enumerate(result.sample_order)
+        }
+        primers = [_primer_payload(primer) for primer in result.primers if primer.feature_id == feature.feature_id]
+        payload = {
+            "feature": _feature_payload(feature),
+            "pi_curve": {
+                "positions": positions,
+                "pi": [
+                    0.0 if result.position_pi[position - 1] is None else float(result.position_pi[position - 1])
+                    for position in positions
+                ],
+            },
+            "snp_positions": snp_positions,
+            "indel_positions": indel_positions,
+            "aligned_block": aligned_block,
+            "haplotypes": haplotypes,
+            "species_map": species_map,
+            "haplotype_network": compute_haplotype_network(aligned_block, species_map),
+            "species_pca": compute_species_pca(aligned_block, species_map),
+            "primers": primers,
+        }
+        write_json(payload_dir / f"{feature_id_safe(feature.feature_id)}.json", payload)
+
+
 def write_primer_amplicons_fasta(path: Path, primers, primer_amplicons: dict[str, dict[str, str]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for primer in primers:
@@ -306,6 +353,7 @@ def write_analysis_outputs(
             encoding="utf-8",
         )
         plot_primer_summary(result, output_dir)
+    write_feature_payloads(output_dir, result)
 
 
 def write_json(path: Path, data: dict) -> None:
@@ -314,6 +362,93 @@ def write_json(path: Path, data: dict) -> None:
 
 def _wrap_fasta(sequence: str, width: int = 80) -> str:
     return "\n".join(sequence[index : index + width] for index in range(0, len(sequence), width))
+
+
+def feature_id_safe(feature_id: str) -> str:
+    return feature_id.replace("/", "_").replace(".", "_").replace(":", "_")
+
+
+def _slice_aligned_block(aligned_sequences: dict[str, str], spans: list[tuple[int, int]]) -> dict[str, str]:
+    return {
+        sample_name: "".join(sequence[start:end] for start, end in spans)
+        for sample_name, sequence in aligned_sequences.items()
+    }
+
+
+def _feature_positions(spans: list[tuple[int, int]]) -> list[int]:
+    return [position + 1 for start, end in spans for position in range(start, end)]
+
+
+def _site_positions(aligned_block: dict[str, str], positions: list[int]) -> tuple[list[int], list[int]]:
+    snp_positions: list[int] = []
+    indel_positions: list[int] = []
+    sequences = [sequence.upper() for sequence in aligned_block.values()]
+    for position, column in zip(positions, zip(*(sequence for sequence in sequences), strict=False), strict=False):
+        counts = Counter(column)
+        canonical = {base for base in counts if base in CANONICAL_BASES}
+        if len(canonical) >= 2:
+            snp_positions.append(position)
+        if counts["-"] and canonical:
+            indel_positions.append(position)
+    return snp_positions, indel_positions
+
+
+def _feature_payload(feature: FeatureResult) -> dict:
+    return {
+        "feature_id": feature.feature_id,
+        "feature_type": feature.feature_type,
+        "parent_gene": feature.parent_gene,
+        "label_name": feature.label_name,
+        "start": feature.start,
+        "end": feature.end,
+        "strand": feature.strand,
+        "length_bp": feature.length_bp,
+        "region": feature.region,
+        "pi": feature.pi,
+        "variable_sites": feature.variable_sites,
+        "indel_sites": feature.indel_sites,
+        "conserved_left_bp": feature.conserved_left_bp,
+        "conserved_right_bp": feature.conserved_right_bp,
+        "primer_available": feature.primer_available,
+        "species_resolution": feature.species_resolution,
+        "unique_haplotype_count": feature.unique_haplotype_count,
+        "species_specific_haplotype_ratio": feature.species_specific_haplotype_ratio,
+        "interspecific_divergence": feature.interspecific_divergence,
+        "intraspecific_divergence": feature.intraspecific_divergence,
+        "nearest_neighbor_discrimination": feature.nearest_neighbor_discrimination,
+        "barcoding_gap": feature.barcoding_gap,
+        "misclassification_risk": feature.misclassification_risk,
+        "alignment_reliability": feature.alignment_reliability,
+        "markerseek_score": feature.markerseek_score,
+    }
+
+
+def _primer_payload(primer: PrimerResult) -> dict:
+    return {
+        "pair_id": primer.pair_id,
+        "feature_id": primer.feature_id,
+        "rank": primer.rank,
+        "fwd_seq": primer.fwd_seq,
+        "rev_seq": primer.rev_seq,
+        "fwd_len": primer.fwd_len,
+        "rev_len": primer.rev_len,
+        "fwd_gc": primer.fwd_gc,
+        "rev_gc": primer.rev_gc,
+        "fwd_tm": primer.fwd_tm,
+        "rev_tm": primer.rev_tm,
+        "fwd_self_any_th": primer.fwd_self_any_th,
+        "rev_self_any_th": primer.rev_self_any_th,
+        "primer3_penalty": primer.primer3_penalty,
+        "target_start": primer.target_start,
+        "target_end": primer.target_end,
+        "amplicon_min_len": primer.amplicon_min_len,
+        "amplicon_max_len": primer.amplicon_max_len,
+        "amplicon_mean_len": primer.amplicon_mean_len,
+        "cross_species_success_rate": primer.cross_species_success_rate,
+        "amplicon_variable_sites": primer.amplicon_variable_sites,
+        "amplicon_indel_sites": primer.amplicon_indel_sites,
+        "primer_score": primer.primer_score,
+    }
 
 
 def create_results_zip(outdir: str | Path, archive_path: str | Path) -> Path:
