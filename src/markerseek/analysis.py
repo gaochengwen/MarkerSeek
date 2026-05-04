@@ -17,7 +17,19 @@ from Bio import SeqIO
 from Bio.SeqFeature import CompoundLocation
 from Bio.SeqRecord import SeqRecord
 
-from .models import AnalysisResult, AnnotatedInterval, FeatureResult, RegionSegment, WindowResult
+from .diagnostics import (
+    alignment_reliability_block,
+    assign_haplotypes,
+    conserved_column_mask,
+    count_variable_and_indel_sites,
+    divergence_stats,
+    flanking_conservation_from_mask,
+    species_resolution,
+    species_specific_haplotype_ratio,
+)
+from .models import AnalysisResult, AnnotatedInterval, FeatureResult, RegionSegment, SampleMetadata, WindowResult
+from .scoring import DEFAULT_WEIGHTS, compute_score, length_suitability
+from .species import build_sample_metadata
 
 SUPPORTED_SUFFIXES = {".gb", ".gbk", ".genbank"}
 CANONICAL_BASES = {"A", "C", "G", "T"}
@@ -129,7 +141,7 @@ def run_analysis(
         if record.sample_name != reference_record.sample_name
     ]
 
-    return AnalysisResult(
+    result = AnalysisResult(
         reference_name=reference_record.sample_name,
         genome_length=genome_length,
         sample_count=len(aligned_sequences),
@@ -141,6 +153,87 @@ def run_analysis(
         exon_intervals=exon_intervals,
         sample_order=sample_order,
     )
+    sample_metadata = build_sample_metadata(genome_records, result.sample_order)
+    result.sample_metadata = sample_metadata
+    result.score_weights = dict(DEFAULT_WEIGHTS)
+    enrich_features_with_diagnostics(result, result.aligned_sequences, sample_metadata)
+    return result
+
+
+def enrich_features_with_diagnostics(
+    result: AnalysisResult,
+    aligned_sequences: dict[str, str],
+    sample_metadata: list[SampleMetadata],
+) -> None:
+    """Fill feature-level SNP, haplotype, divergence, flank, and score diagnostics."""
+
+    species_map = {metadata.sample_name: metadata.species for metadata in sample_metadata}
+    conserved_mask = conserved_column_mask(aligned_sequences)
+    for feature in result.features:
+        aligned_block = slice_aligned_block(aligned_sequences, feature.spans(result.genome_length))
+        variable_sites, indel_sites = count_variable_and_indel_sites(aligned_block)
+        haplotypes = assign_haplotypes(aligned_block)
+        divergences = divergence_stats(aligned_block, species_map)
+        conserved_left_bp, conserved_right_bp = flanking_conservation_from_mask(
+            conserved_mask,
+            region_start=feature.start - 1,
+            region_end=feature.end,
+            genome_length=result.genome_length,
+        )
+
+        feature.variable_sites = variable_sites
+        feature.indel_sites = indel_sites
+        feature.conserved_left_bp = conserved_left_bp
+        feature.conserved_right_bp = conserved_right_bp
+        feature.species_resolution = species_resolution(haplotypes, species_map)
+        feature.unique_haplotype_count = len(set(haplotypes.values()))
+        feature.species_specific_haplotype_ratio = species_specific_haplotype_ratio(haplotypes, species_map)
+        feature.interspecific_divergence = divergences["interspecific"]
+        feature.intraspecific_divergence = divergences["intraspecific"]
+        feature.nearest_neighbor_discrimination = divergences["nearest_neighbor_discrimination"]
+        feature.barcoding_gap = divergences["barcoding_gap"]
+        feature.misclassification_risk = divergences["misclassification_risk"]
+        feature.alignment_reliability = alignment_reliability_block(aligned_block)
+        feature.haplotypes = [haplotypes.get(sample_name, "NA") for sample_name in result.sample_order]
+
+        length_bp = max(feature.length_bp, 1)
+        metrics = {
+            "pi": feature.pi,
+            "variable_site_density": feature.variable_sites / length_bp,
+            "indel_density": feature.indel_sites / length_bp,
+            "flanking_conservation_min": min(feature.conserved_left_bp, feature.conserved_right_bp) / 200.0,
+            "missing_ambig_ratio": missing_ambig_ratio(aligned_block),
+            "alignment_reliability": feature.alignment_reliability,
+            "species_resolution": feature.species_resolution,
+            "barcoding_gap": feature.barcoding_gap,
+            "nearest_neighbor_discrimination": feature.nearest_neighbor_discrimination,
+            "length_suitability": length_suitability(feature.length_bp),
+        }
+        feature.markerseek_score = compute_score(metrics, result.score_weights or DEFAULT_WEIGHTS)
+
+
+def slice_aligned_block(aligned_sequences: dict[str, str], spans: list[tuple[int, int]]) -> dict[str, str]:
+    """Slice and concatenate reference-coordinate spans from each aligned sequence."""
+
+    return {
+        sample_name: "".join(sequence[start:end] for start, end in spans)
+        for sample_name, sequence in aligned_sequences.items()
+    }
+
+
+def missing_ambig_ratio(aligned_block: dict[str, str]) -> float | None:
+    """Return the fraction of feature cells that are gaps or non-canonical bases."""
+
+    total = 0
+    missing_or_ambiguous = 0
+    for sequence in aligned_block.values():
+        for base in sequence.upper():
+            total += 1
+            if base not in CANONICAL_BASES:
+                missing_or_ambiguous += 1
+    if total == 0:
+        return None
+    return missing_or_ambiguous / total
 
 
 def discover_genbank_files(inputs: Iterable[str | Path]) -> list[Path]:
