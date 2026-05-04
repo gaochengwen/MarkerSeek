@@ -123,6 +123,33 @@ class FeatureResult:
 
 
 @dataclass
+class PrimerResult:
+    pair_id: str
+    feature_id: str
+    rank: int
+    fwd_seq: str
+    rev_seq: str
+    fwd_len: int
+    rev_len: int
+    fwd_gc: float
+    rev_gc: float
+    fwd_tm: float
+    rev_tm: float
+    fwd_self_any_th: float
+    rev_self_any_th: float
+    primer3_penalty: float
+    target_start: int
+    target_end: int
+    amplicon_min_len: int
+    amplicon_max_len: int
+    amplicon_mean_len: float
+    cross_species_success_rate: float
+    amplicon_variable_sites: int
+    amplicon_indel_sites: int
+    primer_score: float
+
+
+@dataclass
 class SampleMetadata:
     sample_name: str
     species: str
@@ -143,3 +170,5 @@ class AnalysisResult:
     sample_order: list[str] = field(default_factory=list)
     sample_metadata: list[SampleMetadata] = field(default_factory=list)
     score_weights: dict[str, float] = field(default_factory=dict)
+    primers: list[PrimerResult] = field(default_factory=list)
+    primer_amplicons: dict[str, dict[str, str]] = field(default_factory=dict)
