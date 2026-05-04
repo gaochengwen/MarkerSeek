@@ -1119,3 +1119,89 @@ def plot_similarity_figure(
     fig.savefig(png_path, dpi=PLOT_DPI)
     plt.close(fig)
     return pdf_path, png_path
+
+
+def plot_primer_summary(result: AnalysisResult, outdir: Path) -> Path | None:
+    """Create a primer amplicon length and success-rate summary figure."""
+
+    if not result.primers:
+        return None
+
+    pair_ids = [primer.pair_id for primer in result.primers]
+    samples = result.sample_order or sorted(
+        {
+            sample_name
+            for amplicons in result.primer_amplicons.values()
+            for sample_name in amplicons
+        }
+    )
+    if not samples:
+        samples = ["samples"]
+
+    length_data = [
+        [len(sequence) for sequence in result.primer_amplicons.get(pair_id, {}).values()] or [0]
+        for pair_id in pair_ids
+    ]
+    heatmap = [
+        [1 if sample_name in result.primer_amplicons.get(pair_id, {}) else 0 for sample_name in samples]
+        for pair_id in pair_ids
+    ]
+
+    plt.rcParams.update(
+        {
+            "font.family": _preferred_font_family(),
+            "font.size": 6,
+            "axes.labelsize": 7,
+            "xtick.labelsize": 5.4,
+            "ytick.labelsize": 5.4,
+            "axes.linewidth": 0.5,
+        }
+    )
+
+    width_in = max(7.2, min(14.0, 0.32 * max(len(pair_ids), 1)))
+    height_in = max(4.6, min(14.0, 2.2 + (0.18 * len(pair_ids)) + (0.03 * len(samples))))
+    fig, (length_ax, heatmap_ax) = plt.subplots(
+        2,
+        1,
+        figsize=(width_in, height_in),
+        gridspec_kw={"height_ratios": [1.0, 1.25], "hspace": 0.52},
+        constrained_layout=False,
+    )
+    fig.patch.set_facecolor("white")
+
+    positions = list(range(1, len(pair_ids) + 1))
+    length_ax.boxplot(
+        length_data,
+        positions=positions,
+        widths=0.62,
+        patch_artist=True,
+        showfliers=False,
+        boxprops={"facecolor": "#e7eef7", "edgecolor": "#4a647d", "linewidth": 0.65},
+        whiskerprops={"color": "#4a647d", "linewidth": 0.65},
+        capprops={"color": "#4a647d", "linewidth": 0.65},
+        medianprops={"color": "#1f2d3a", "linewidth": 0.85},
+    )
+    length_ax.set_ylabel("Amplicon length (bp)")
+    length_ax.set_xticks(positions)
+    length_ax.set_xticklabels(pair_ids, rotation=90, ha="center")
+    length_ax.grid(axis="y", color=GRID_COLOR, linewidth=0.38, linestyle=(0, (3, 3)))
+    for side, spine in length_ax.spines.items():
+        spine.set_visible(side in {"left", "bottom"})
+
+    heatmap_ax.imshow(heatmap, aspect="auto", cmap="Greens", vmin=0, vmax=1, interpolation="nearest")
+    heatmap_ax.set_yticks(range(len(pair_ids)))
+    heatmap_ax.set_yticklabels(pair_ids)
+    heatmap_ax.set_xticks(range(len(samples)))
+    heatmap_ax.set_xticklabels(samples, rotation=90, ha="center")
+    heatmap_ax.set_ylabel("Primer pair")
+    heatmap_ax.set_xlabel("Sample")
+    heatmap_ax.set_title("Cross-species amplification", fontsize=7.2, pad=5)
+    for side, spine in heatmap_ax.spines.items():
+        spine.set_visible(side in {"left", "bottom"})
+
+    fig.subplots_adjust(left=0.13, right=0.985, top=0.97, bottom=0.19)
+    outdir.mkdir(parents=True, exist_ok=True)
+    path = outdir / "primer_summary.png"
+    fig.savefig(path, dpi=300)
+    plt.close(fig)
+    return path
