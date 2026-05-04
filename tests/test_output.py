@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from markerseek.models import AnalysisResult, FeatureResult
-from markerseek.output import write_marker_features_tsv
+from markerseek.output import write_marker_features_tsv, write_primers_tsv
 
 
 def test_marker_features_tsv_has_25_columns(tmp_path) -> None:
@@ -62,3 +62,23 @@ def test_marker_features_tsv_has_25_columns(tmp_path) -> None:
         "markerseek_score",
     ]
     assert len(header) == 25
+
+
+def test_primers_tsv_has_expected_columns_and_writes_when_empty(tmp_path) -> None:
+    result = AnalysisResult(
+        reference_name="reference",
+        genome_length=100,
+        sample_count=2,
+        regions=[],
+        position_pi=[],
+        windows=[],
+        features=[],
+    )
+    path = tmp_path / "primers.tsv"
+
+    write_primers_tsv(path, result.primers)
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    header = lines[0].split("\t")
+    assert len(header) == 23
+    assert lines == ["\t".join(header)]

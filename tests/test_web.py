@@ -26,6 +26,18 @@ def test_default_similarity_values_match_web_defaults() -> None:
     assert values["similarity_step"] == "60"
 
 
+def test_primer_design_form_field_round_trip() -> None:
+    form = web_app.default_form_values()
+    form["primer_design"] = "on"
+
+    enabled = web_app.parse_job_params(form)
+    form["primer_design"] = ""
+    disabled = web_app.parse_job_params(form)
+
+    assert enabled["primer_design"] is True
+    assert disabled["primer_design"] is False
+
+
 def test_save_filename_strips_path_and_unsafe_characters() -> None:
     assert web_app.safe_filename("../../bad name.gb") == "bad_name.gb"
     assert web_app.safe_filename("") == "input.gb"
