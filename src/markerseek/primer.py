@@ -68,7 +68,7 @@ def find_conserved_flanks(
     max_scan: int = 300,
     min_len: int = 18,
     max_len: int = 24,
-    identity_threshold: float = 0.95,
+    identity_threshold: float = 0.90,
 ) -> tuple[FlankCandidate | None, FlankCandidate | None]:
     """Find conserved flanks immediately outside a target interval."""
 
@@ -138,13 +138,13 @@ def design_primers_for_region(
         "PRIMER_PICK_RIGHT_PRIMER": 1,
         "PRIMER_OPT_SIZE": 20,
         "PRIMER_MIN_SIZE": 18,
-        "PRIMER_MAX_SIZE": 25,
-        "PRIMER_OPT_TM": 60.0,
-        "PRIMER_MIN_TM": 55.0,
-        "PRIMER_MAX_TM": 65.0,
+        "PRIMER_MAX_SIZE": 27,
+        "PRIMER_OPT_TM": 58.0,
+        "PRIMER_MIN_TM": 52.0,
+        "PRIMER_MAX_TM": 68.0,
         "PRIMER_OPT_GC_PERCENT": 50.0,
-        "PRIMER_MIN_GC": 35.0,
-        "PRIMER_MAX_GC": 65.0,
+        "PRIMER_MIN_GC": 30.0,
+        "PRIMER_MAX_GC": 70.0,
         "PRIMER_PRODUCT_SIZE_RANGE": [[80, 3000]],
         "PRIMER_NUM_RETURN": max_pairs,
         "PRIMER_THERMODYNAMIC_OLIGO_ALIGNMENT": 1,
