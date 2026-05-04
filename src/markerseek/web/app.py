@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import os
@@ -14,6 +15,7 @@ import threading
 import traceback
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from io import StringIO
 from pathlib import Path
 from secrets import randbelow
 from statistics import median
@@ -26,7 +28,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from markerseek.analysis import MarkerSeekError, run_analysis
-from markerseek.output import RESULT_FILENAMES, create_results_zip, write_analysis_outputs, write_json
+from markerseek.output import (
+    MARKER_FEATURE_COLUMNS,
+    PRIMER_COLUMNS,
+    RESULT_FILENAMES,
+    create_results_zip,
+    feature_id_safe,
+    format_float,
+    write_analysis_outputs,
+    write_json,
+)
+from markerseek.visualisation import render_alignment_svg_block
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = PACKAGE_DIR / "templates"
@@ -35,6 +47,7 @@ STATIC_DIR = PACKAGE_DIR / "static"
 SUPPORTED_UPLOAD_SUFFIXES = {".gb", ".gbk", ".genbank"}
 JOB_STATUS_ORDER = {"queued", "running", "succeeded", "failed", "expired"}
 DOWNLOADABLE_FILES = set(RESULT_FILENAMES) | {"results.zip"}
+FEATURE_DATA_KEYS = ("pi_curve", "snp_positions", "indel_positions", "haplotype_network", "species_pca", "primers")
 
 MAX_FILES = 30
 MIN_FILES = 2
@@ -106,6 +119,10 @@ def inputs_dir(job_id: str) -> Path:
 
 def outputs_dir(job_id: str) -> Path:
     return job_dir(job_id) / "outputs"
+
+
+def feature_payload_dir(job_id: str) -> Path:
+    return outputs_dir(job_id) / "feature_payload"
 
 
 def init_db() -> None:
@@ -321,6 +338,57 @@ def display_job_params(params: dict[str, Any]) -> list[tuple[str, Any]]:
     ordered_keys = [key for key in priority if key in params]
     ordered_keys.extend(key for key in params if key not in hidden and key not in ordered_keys)
     return [(labels.get(key, key), params[key]) for key in ordered_keys if key not in hidden]
+
+
+def read_marker_feature_rows(job_id: str) -> list[dict[str, str | bool]]:
+    path = outputs_dir(job_id) / "Marker_features.tsv"
+    if not path.exists():
+        return []
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+    for row in rows:
+        row["has_detail"] = (feature_payload_dir(job_id) / f"{feature_id_safe(row.get('feature_id', ''))}.json").exists()
+    return rows
+
+
+def load_feature_payload(job_id: str, feature_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    row = get_job(job_id)
+    if row is None or row["status"] != "succeeded":
+        raise HTTPException(status_code=404, detail="Results are not available.")
+    path = feature_payload_dir(job_id) / f"{feature_id_safe(feature_id)}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Feature detail is not available.")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return row_to_job(row), payload
+
+
+def feature_fasta(payload: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for sample_name, sequence in payload.get("aligned_block", {}).items():
+        lines.append(f">{sample_name}")
+        lines.extend(sequence[index : index + 80] for index in range(0, len(sequence), 80))
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def feature_csv(payload: dict[str, Any]) -> str:
+    feature = payload["feature"]
+    primers = payload.get("primers", [])
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(MARKER_FEATURE_COLUMNS + PRIMER_COLUMNS)
+    feature_values = [_feature_csv_value(feature.get(column)) for column in MARKER_FEATURE_COLUMNS]
+    if primers:
+        for primer in primers:
+            writer.writerow(feature_values + [_feature_csv_value(primer.get(column)) for column in PRIMER_COLUMNS])
+    else:
+        writer.writerow(feature_values + [""] * len(PRIMER_COLUMNS))
+    return output.getvalue()
+
+
+def _feature_csv_value(value: Any) -> str | int:
+    if isinstance(value, float) or value is None:
+        return format_float(value)
+    return value
 
 
 def input_file_metrics(job_id: str, input_files: list[str]) -> dict[str, Any]:
@@ -867,6 +935,7 @@ def result_page(request: Request, job_id: str) -> HTMLResponse:
         for name in DOWNLOADABLE_FILES
         if (outputs_dir(job_id) / name).exists()
     ]
+    feature_rows = read_marker_feature_rows(job_id) if job["status"] == "succeeded" else []
     return templates.TemplateResponse(
         request,
         "result.html",
@@ -876,7 +945,51 @@ def result_page(request: Request, job_id: str) -> HTMLResponse:
             "runtime_estimate": estimate_job_runtime(job),
             "manifest": manifest,
             "available_files": sorted(available_files),
+            "feature_rows": feature_rows,
             "refresh": job["status"] in {"queued", "running"},
+        },
+    )
+
+
+@app.get("/analyzer/results/{job_id}/feature/{feature_id:path}/data.json")
+def feature_data_json(job_id: str, feature_id: str) -> JSONResponse:
+    _job, payload = load_feature_payload(job_id, feature_id)
+    return JSONResponse({key: payload.get(key) for key in FEATURE_DATA_KEYS})
+
+
+@app.get("/analyzer/results/{job_id}/feature/{feature_id:path}/download/{kind}")
+def feature_download(job_id: str, feature_id: str, kind: str) -> Response:
+    if kind not in {"fasta", "csv"}:
+        raise HTTPException(status_code=404, detail="Feature download is not available.")
+    _job, payload = load_feature_payload(job_id, feature_id)
+    safe_id = feature_id_safe(payload["feature"]["feature_id"])
+    if kind == "fasta":
+        content = feature_fasta(payload)
+        media_type = "text/plain"
+        filename = f"{safe_id}.fasta"
+    else:
+        content = feature_csv(payload)
+        media_type = "text/csv"
+        filename = f"{safe_id}.csv"
+    return Response(
+        content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/analyzer/results/{job_id}/feature/{feature_id:path}", response_class=HTMLResponse)
+def feature_detail_page(request: Request, job_id: str, feature_id: str) -> HTMLResponse:
+    job, payload = load_feature_payload(job_id, feature_id)
+    alignment_html = render_alignment_svg_block(payload.get("aligned_block", {}))
+    return templates.TemplateResponse(
+        request,
+        "feature_detail.html",
+        {
+            "job": job,
+            "feature": payload["feature"],
+            "primers": payload.get("primers", []),
+            "alignment_html": alignment_html,
         },
     )
 
