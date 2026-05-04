@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import csv
-from pathlib import Path
 
 from .analysis import MarkerSeekError, run_analysis
-from .plotting import plot_pi_figure, plot_similarity_figure
+from .output import write_analysis_outputs
 
 
 def positive_int(raw_value: str) -> int:
@@ -54,6 +52,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     analyze.add_argument("--mafft-bin", default="mafft", help="MAFFT executable or absolute path.")
     analyze.add_argument(
+        "--mafft-threads",
+        type=positive_int,
+        default=None,
+        help="Number of MAFFT worker threads. Defaults to MAFFT's own thread setting.",
+    )
+    analyze.add_argument(
         "--label-mode",
         choices=("peak-only", "all", "none"),
         default="peak-only",
@@ -74,13 +78,13 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--similarity-window",
         type=positive_int,
-        default=100,
+        default=200,
         help="Sliding window size in bp for the mVISTA-style similarity figure.",
     )
     analyze.add_argument(
         "--similarity-step",
         type=positive_int,
-        default=20,
+        default=60,
         help="Sliding step size in bp for the similarity figure.",
     )
     analyze.add_argument(
@@ -126,88 +130,6 @@ def manual_regions_from_args(args: argparse.Namespace) -> dict[str, tuple[int, i
     return {name: parse_manual_region(text) for name, text in region_text.items()}
 
 
-def write_windows_tsv(path: Path, windows) -> None:
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(
-            [
-                "window_id",
-                "start",
-                "end",
-                "midpoint",
-                "pi",
-                "valid_sites",
-                "region",
-                "label_name",
-                "is_hotspot",
-            ]
-        )
-        for row in windows:
-            writer.writerow(
-                [
-                    row.window_id,
-                    row.start,
-                    row.end,
-                    row.midpoint,
-                    format_float(row.pi),
-                    row.valid_sites,
-                    row.region,
-                    row.label_name,
-                    "yes" if row.is_hotspot else "no",
-                ]
-            )
-
-
-def write_features_tsv(path: Path, features) -> None:
-    parent_genes_with_parts = {
-        row.parent_gene
-        for row in features
-        if row.feature_id.startswith(f"{row.parent_gene}_part")
-    }
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(
-            [
-                "feature_id",
-                "feature_type",
-                "parent_gene",
-                "label_name",
-                "start",
-                "end",
-                "strand",
-                "length_bp",
-                "region",
-                "pi",
-            ]
-        )
-        for row in features:
-            if (
-                row.feature_id == row.parent_gene
-                and row.parent_gene in parent_genes_with_parts
-            ):
-                continue
-            writer.writerow(
-                [
-                    row.feature_id,
-                    row.feature_type,
-                    row.parent_gene,
-                    row.label_name,
-                    row.start,
-                    row.end,
-                    row.strand,
-                    row.length_bp,
-                    row.region,
-                    format_float(row.pi),
-                ]
-            )
-
-
-def format_float(value: float | None) -> str:
-    if value is None:
-        return "NA"
-    return f"{value:.6f}"
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -224,30 +146,23 @@ def main(argv: list[str] | None = None) -> int:
             hotspot_mode=args.hotspot_mode,
             hotspot_value=args.hotspot_value,
             mafft_bin=args.mafft_bin,
+            mafft_threads=args.mafft_threads,
             manual_regions=manual_regions_from_args(args),
         )
     except MarkerSeekError as exc:
         parser.exit(2, f"Error: {exc}\n")
 
-    outdir = Path(args.outdir).resolve()
-    outdir.mkdir(parents=True, exist_ok=True)
-    write_windows_tsv(outdir / "pi_windows.tsv", result.windows)
-    write_features_tsv(outdir / "pi_features.tsv", result.features)
-    plot_pi_figure(
+    write_analysis_outputs(
         result,
-        outdir,
+        args.outdir,
         hotspot_mode=args.hotspot_mode,
         hotspot_value=args.hotspot_value,
         label_mode=args.label_mode,
         label_max=args.label_max,
         label_min_distance_bp=args.label_min_distance,
+        similarity_window=args.similarity_window,
+        similarity_step=args.similarity_step,
+        similarity_floor=args.similarity_floor,
+        include_similarity_plot=not args.no_similarity_plot,
     )
-    if not args.no_similarity_plot:
-        plot_similarity_figure(
-            result,
-            outdir,
-            similarity_window=args.similarity_window,
-            similarity_step=args.similarity_step,
-            similarity_floor=args.similarity_floor,
-        )
     return 0

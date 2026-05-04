@@ -945,8 +945,11 @@ def _plot_similarity_row(
         labelright=False,
     )
     ax.tick_params(axis="x", bottom=False, labelbottom=False, top=False, labeltop=False)
+    visible_spines = {"left", "right", "top"}
+    if is_last:
+        visible_spines.add("bottom")
     for side, spine in ax.spines.items():
-        spine.set_visible(side in {"left", "right", "bottom" if is_last else "top"})
+        spine.set_visible(side in visible_spines)
         spine.set_linewidth(0.32)
         spine.set_color("#9aa0a6")
     ax.set_facecolor("white")
@@ -960,7 +963,7 @@ def _plot_similarity_row(
         ]
         xs = [point[0] for point in clipped]
         ys = [point[1] for point in clipped]
-        ax.plot(xs, ys, color=SIMILARITY_LINE_COLOR, linewidth=0.18, zorder=3)
+        ax.plot(xs, ys, color=SIMILARITY_LINE_COLOR, linewidth=0.32, zorder=3)
 
     pretty_name = sample_name.rsplit("_", 1)[0].replace("_", " ")
     ax.set_ylabel(
@@ -978,8 +981,8 @@ def plot_similarity_figure(
     result: AnalysisResult,
     outdir: Path,
     *,
-    similarity_window: int = 100,
-    similarity_step: int = 20,
+    similarity_window: int = 200,
+    similarity_step: int = 60,
     similarity_floor: float = 0.5,
 ) -> tuple[Path, Path]:
     """Create an mVISTA-style similarity figure (PDF + PNG).

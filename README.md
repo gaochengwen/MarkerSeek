@@ -76,6 +76,35 @@ markerseek analyze test_data \
   --label-mode peak-only \
 ```
 
+## Web Server
+
+MarkerSeek also includes a single-machine web server for browser-based analysis.
+Users upload 2-20 GenBank files, configure common parameters, receive a job ID,
+and use that ID to check status or download results.
+
+Start the server:
+
+```bash
+markerseek-web --host 0.0.0.0 --port 8000
+```
+
+Then open:
+
+```text
+http://localhost:8000/markerseek
+```
+
+The web server runs one analysis job at a time in a local background queue and
+stores task metadata in SQLite. By default, job inputs and outputs are written
+under `markerseek_jobs/` and are retained for 7 days.
+
+Useful environment variables:
+
+- `MARKERSEEK_WEB_DATA`: directory for uploads, SQLite metadata, and results.
+- `MARKERSEEK_RETENTION_DAYS`: number of days before jobs expire; default `7`.
+- `MARKERSEEK_MAX_UPLOAD_BYTES`: total upload limit per job; default `20971520`.
+- `MARKERSEEK_MAFFT_BIN`: MAFFT executable or absolute path; default `mafft`.
+
 ## Key Parameters
 
 - `--reference`: GenBank file used as the coordinate and annotation reference. Defaults to the first input.
@@ -91,6 +120,7 @@ markerseek analyze test_data \
 - `--similarity-floor`: lower bound of the similarity y-axis (fraction in 0–1). Default `0.5`.
 - `--no-similarity-plot`: skip generating `similarity_plot.{pdf,png}`.
 - `--mafft-bin`: MAFFT executable or absolute path. Default `mafft`.
+- `--mafft-threads`: optional number of MAFFT worker threads.
 
 Manual region overrides use 1-based inclusive coordinates and require all four:
 

@@ -62,6 +62,7 @@ def run_analysis(
     hotspot_mode: str = "top-percent",
     hotspot_value: float = 3.0,
     mafft_bin: str = "mafft",
+    mafft_threads: int | None = None,
     manual_regions: dict[str, tuple[int, int]] | None = None,
 ) -> AnalysisResult:
     """Run the full GenBank-to-Pi workflow and return structured results."""
@@ -70,6 +71,8 @@ def run_analysis(
         raise MarkerSeekError("--window must be a positive integer.")
     if step <= 0:
         raise MarkerSeekError("--step must be a positive integer.")
+    if mafft_threads is not None and mafft_threads <= 0:
+        raise MarkerSeekError("--mafft-threads must be a positive integer.")
 
     genome_paths = discover_genbank_files(inputs)
     if len(genome_paths) < 2:
@@ -91,7 +94,7 @@ def run_analysis(
     feature_catalog = build_feature_catalog(atomic_features, genome_length)
     feature_catalog = assign_regions_to_features(feature_catalog, regions, genome_length)
 
-    aligned_records = run_mafft_alignment(genome_records, mafft_bin)
+    aligned_records = run_mafft_alignment(genome_records, mafft_bin, mafft_threads=mafft_threads)
     aligned_sequences = project_alignment_to_reference(aligned_records, reference_record.sample_name)
     if not aligned_sequences:
         raise MarkerSeekError("MAFFT produced no aligned sequences.")
@@ -618,7 +621,12 @@ def build_feature_catalog(features: list[AnnotatedInterval], genome_length: int)
     return sorted(catalog, key=lambda item: (item.start, item.end, item.feature_id))
 
 
-def run_mafft_alignment(genome_records: list[GenomeInput], mafft_bin: str) -> list[SeqRecord]:
+def run_mafft_alignment(
+    genome_records: list[GenomeInput],
+    mafft_bin: str,
+    *,
+    mafft_threads: int | None = None,
+) -> list[SeqRecord]:
     """Align all GenBank sequences with MAFFT."""
 
     if shutil.which(mafft_bin) is None and not Path(mafft_bin).exists():
@@ -641,7 +649,10 @@ def run_mafft_alignment(genome_records: list[GenomeInput], mafft_bin: str) -> li
         if mafft_path.exists() and mafft_path.suffix == ".py":
             command = [sys.executable, str(mafft_path), "--auto", str(fasta_path)]
         else:
-            command = [mafft_bin, "--auto", str(fasta_path)]
+            command = [mafft_bin]
+            if mafft_threads is not None:
+                command.extend(["--thread", str(mafft_threads)])
+            command.extend(["--auto", str(fasta_path)])
         try:
             completed = subprocess.run(command, check=True, capture_output=True, text=True)
         except FileNotFoundError as exc:

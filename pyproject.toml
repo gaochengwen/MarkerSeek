@@ -14,19 +14,28 @@ authors = [
 ]
 dependencies = [
   "biopython>=1.84",
+  "fastapi>=0.115",
+  "jinja2>=3.1",
   "matplotlib>=3.8",
+  "python-multipart>=0.0.9",
+  "uvicorn[standard]>=0.30",
 ]
 
 [project.optional-dependencies]
 dev = [
+  "httpx>=0.28",
   "pytest>=8.0",
 ]
 
 [project.scripts]
 markerseek = "markerseek.cli:main"
+markerseek-web = "markerseek.web.app:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"markerseek.web" = ["templates/*.html", "static/*.css", "static/*.svg"]
