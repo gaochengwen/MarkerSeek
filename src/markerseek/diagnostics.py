@@ -110,6 +110,8 @@ def divergence_stats(aligned_block: dict[str, str], species_map: dict[str, str])
 
     _sequence_length(aligned_block)
     samples = list(aligned_block)
+    species_counts = Counter(species_map.get(sample_name) for sample_name in samples if species_map.get(sample_name))
+    has_within_species_pairs = any(count >= 2 for count in species_counts.values())
     pair_distances: dict[tuple[str, str], float] = {}
     interspecific: list[float] = []
     intraspecific: list[float] = []
@@ -131,7 +133,11 @@ def divergence_stats(aligned_block: dict[str, str], species_map: dict[str, str])
     else:
         barcoding_gap = None
 
-    nearest_neighbor_discrimination = _nearest_neighbor_discrimination(samples, pair_distances, species_map)
+    nearest_neighbor_discrimination = (
+        _nearest_neighbor_discrimination(samples, pair_distances, species_map)
+        if has_within_species_pairs
+        else None
+    )
     misclassification_risk = (
         None if nearest_neighbor_discrimination is None else 1.0 - nearest_neighbor_discrimination
     )
