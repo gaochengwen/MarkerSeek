@@ -76,6 +76,8 @@ Open `http://localhost:8000/markerseek`, upload GenBank files, choose a referenc
 
 The web server stores jobs under `markerseek_jobs/` by default and records metadata in SQLite. Useful environment variables are:
 
+The primary navigation also includes an Example page that links to the permanent demonstration job `MSK-EXAMPLE-DEMO` when that job has been generated in the local job registry.
+
 | Variable | Description |
 | --- | --- |
 | `MARKERSEEK_WEB_DATA` | Directory for uploads, job outputs, and `jobs.sqlite3`. |
