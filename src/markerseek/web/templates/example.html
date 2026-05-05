@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Example - MarkerSeek{% endblock %}
+{% block content %}
+<section class="narrow-page example-page">
+  <div class="section-heading">
+    <h1>Example</h1>
+    <p>A permanent MarkerSeek demonstration using the bundled Salvia plastome dataset.</p>
+  </div>
+
+  <section class="form-section">
+    <h2>Demo dataset</h2>
+    <p>The demo job uses the annotated <em>Salvia</em> plastomes distributed in <code>test_data/</code>, with <code>Salvia_chinensis.gb</code> as the coordinate and annotation reference.</p>
+  </section>
+
+  <section class="form-section">
+    <h2>Parameters used</h2>
+    <dl class="parameter-grid">
+      <div class="parameter-item"><dt>hotspot_window</dt><dd>600 bp</dd></div>
+      <div class="parameter-item"><dt>hotspot_step</dt><dd>200 bp</dd></div>
+      <div class="parameter-item"><dt>hotspot_mode</dt><dd>top-percent</dd></div>
+      <div class="parameter-item"><dt>hotspot_value</dt><dd>3.0</dd></div>
+      <div class="parameter-item"><dt>similarity_window</dt><dd>200 bp</dd></div>
+      <div class="parameter-item"><dt>similarity_step</dt><dd>60 bp</dd></div>
+      <div class="parameter-item"><dt>primer_design</dt><dd>true</dd></div>
+    </dl>
+  </section>
+
+  <section class="form-section">
+    <h2>Expected runtime</h2>
+    <p>On a small server, the analysis usually completes in a few minutes. Primer design adds extra MAFFT and in-silico PCR work after the candidate markers are selected.</p>
+  </section>
+
+  <section class="form-section">
+    <h2>What you will see in the results page</h2>
+    <p>The results page shows Pi and similarity previews, downloadable TSV and figure files, and a Candidate markers table. Each row links to a hotspot detail page and reports the label, plastome region, feature length, Pi, alignment reliability, MarkerSeek score, and primer availability.</p>
+  </section>
+
+  <section class="form-section">
+    <h2>What you will see in a detail page</h2>
+    <p>Detail pages combine feature metadata, a local Pi curve, an alignment viewer, haplotype network, species PCA, primer ranking table, and FASTA/CSV downloads for the selected candidate marker.</p>
+  </section>
+
+  <section class="form-section">
+    <h2>How to interpret the MarkerSeek score</h2>
+    <p>Higher scores indicate candidates with stronger polymorphism, cleaner alignment, useful conserved flanks, stronger species-level evidence, and more suitable amplicon length. Scores are comparative within a run rather than absolute biological guarantees.</p>
+    <p><a class="button-link" href="/analyzer/results/{{ demo_job_id }}">View example results</a></p>
+  </section>
+</section>
+{% endblock %}

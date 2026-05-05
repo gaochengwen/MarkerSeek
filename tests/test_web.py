@@ -90,7 +90,7 @@ def test_download_file_rejects_non_whitelisted_output(tmp_path: Path, monkeypatc
     assert run_log_response.status_code == 404
 
 
-def test_download_marker_features_tsv_whitelisted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_download_candidate_marker_features_tsv_whitelisted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     settings = web_app.WebSettings()
     settings.data_dir = tmp_path
     monkeypatch.setattr(web_app, "settings", settings)
@@ -99,8 +99,8 @@ def test_download_marker_features_tsv_whitelisted(tmp_path: Path, monkeypatch: p
     job_id = "MSK-202605010000001"
     outdir = web_app.outputs_dir(job_id)
     outdir.mkdir(parents=True)
+    (outdir / "candidate_marker_features.tsv").write_text("feature_id\n", encoding="utf-8")
     (outdir / "Marker_features.tsv").write_text("feature_id\n", encoding="utf-8")
-    (outdir / "pi_features.tsv").write_text("feature_id\n", encoding="utf-8")
     now = web_app.isoformat(web_app.utcnow())
     with sqlite3.connect(settings.db_path) as conn:
         conn.execute(
@@ -116,11 +116,70 @@ def test_download_marker_features_tsv_whitelisted(tmp_path: Path, monkeypatch: p
         conn.commit()
 
     client = TestClient(web_app.app)
-    marker_response = client.get(f"/analyzer/results/{job_id}/download/Marker_features.tsv")
-    old_response = client.get(f"/analyzer/results/{job_id}/download/pi_features.tsv")
+    marker_response = client.get(f"/analyzer/results/{job_id}/download/candidate_marker_features.tsv")
+    old_response = client.get(f"/analyzer/results/{job_id}/download/Marker_features.tsv")
 
     assert marker_response.status_code == 200
     assert old_response.status_code == 404
+
+
+def test_example_page_renders() -> None:
+    client = TestClient(web_app.app)
+
+    response = client.get("/analyzer/example")
+
+    assert response.status_code == 200
+    assert "Demo dataset" in response.text
+    assert "MSK-EXAMPLE-DEMO" in response.text
+
+
+def test_example_demo_job_route_returns_200(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = web_app.WebSettings()
+    settings.data_dir = tmp_path
+    monkeypatch.setattr(web_app, "settings", settings)
+    web_app.init_db()
+
+    job_id = "MSK-EXAMPLE-DEMO"
+    outdir = web_app.outputs_dir(job_id)
+    outdir.mkdir(parents=True)
+    (outdir / "candidate_marker_features.tsv").write_text("feature_id\n", encoding="utf-8")
+    now = web_app.isoformat(web_app.utcnow())
+    (outdir / "job.json").write_text(
+        """{
+  "job_id": "MSK-EXAMPLE-DEMO",
+  "status": "succeeded",
+  "permanent": true,
+  "expires_at": null,
+  "params": {},
+  "input_files": [],
+  "reference_file": "Salvia_chinensis.gb",
+  "sample_count": 18,
+  "genome_length": 151000,
+  "window_count": 1,
+  "hotspot_window_count": 1,
+  "feature_count": 1,
+  "primer_pair_count": 0
+}""",
+        encoding="utf-8",
+    )
+    with sqlite3.connect(settings.db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO jobs (
+                job_id, status, project_name, created_at, updated_at, completed_at,
+                expires_at, params_json, input_files_json, reference_file, permanent
+            )
+            VALUES (?, 'succeeded', 'MarkerSeek demo', ?, ?, ?, 'permanent', '{}', '[]', 'Salvia_chinensis.gb', 1)
+            """,
+            (job_id, now, now, now),
+        )
+        conn.commit()
+
+    client = TestClient(web_app.app)
+    response = client.get(f"/analyzer/results/{job_id}")
+
+    assert response.status_code == 200
+    assert "MSK-EXAMPLE-DEMO" in response.text
 
 
 def test_runtime_estimate_uses_uploaded_size_and_queue(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

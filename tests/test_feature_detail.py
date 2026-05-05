@@ -139,8 +139,8 @@ def _feature_payload() -> dict:
         },
         "primers": [
             {
-                "pair_id": "IGS_001_p1",
-                "feature_id": "IGS_001",
+                "primer_id": "geneA-geneB_p1",
+                "label_name": "geneA-geneB",
                 "rank": 1,
                 "fwd_seq": "ACGTACGTACGTACGTAC",
                 "rev_seq": "TGCATGCATGCATGCATG",

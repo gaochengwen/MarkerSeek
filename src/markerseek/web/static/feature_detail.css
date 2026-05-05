@@ -101,3 +101,22 @@
   color: var(--muted);
   font-weight: 700;
 }
+
+.feature-metadata {
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 24px;
+  padding: 14px;
+  overflow: visible;
+}
+
+.feature-metadata dt,
+.feature-metadata dd {
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.feature-metadata dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

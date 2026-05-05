@@ -29,7 +29,7 @@
     </div>
     <div>
       <span>Expires</span>
-      <strong>{{ job.expires_at }}</strong>
+      <strong>{{ "Never" if job.permanent else job.expires_at }}</strong>
     </div>
     <div>
       <span>Reference</span>
@@ -87,10 +87,12 @@
     <div class="section-heading">
       <h2>Parameters</h2>
     </div>
-    <dl class="parameter-list">
+    <dl class="parameter-grid">
       {% for key, value in display_params %}
-      <dt>{{ key }}</dt>
-      <dd>{{ value }}</dd>
+      <div class="parameter-item">
+        <dt>{{ key }}</dt>
+        <dd>{{ value }}</dd>
+      </div>
       {% endfor %}
     </dl>
   </section>
@@ -120,35 +122,38 @@
   {% if feature_rows %}
   <section class="form-section">
     <div class="section-heading">
-      <h2>Hotspot Regions</h2>
+      <h2>Candidate markers</h2>
     </div>
+    {% if show_replicate_hint %}
+    <p class="diagnostic-hint">Some within-species diagnostics are unavailable because the dataset does not include at least two samples per species.</p>
+    {% endif %}
     <div class="table-wrap">
       <table class="hotspot-table">
         <thead>
           <tr>
-            <th>feature_id</th>
-            <th>region</th>
-            <th>length_bp</th>
-            <th>pi</th>
-            <th>markerseek_score</th>
-            <th>primer_available</th>
+            <th>Label</th>
+            <th>Region</th>
+            <th>Length (bp)</th>
+            <th>Pi</th>
+            <th>Alignment reliability</th>
+            <th>MarkerSeek score</th>
+            <th>Primer available</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {% for row in feature_rows %}
-          <tr{% if row.has_detail %} class="has-detail"{% endif %}>
-            <td>
-              {% if row.has_detail %}
-              <a href="/analyzer/results/{{ job.job_id }}/feature/{{ row.feature_id|urlencode }}">{{ row.feature_id }}</a>
-              {% else %}
-              {{ row.feature_id }}
-              {% endif %}
-            </td>
+          <tr>
+            <td>{{ row.label_name }}</td>
             <td>{{ row.region }}</td>
             <td>{{ row.length_bp }}</td>
-            <td>{{ row.pi }}</td>
-            <td>{{ row.markerseek_score }}</td>
+            <td>{{ row.pi|fmt2 }}</td>
+            <td>{{ row.alignment_reliability|fmt2 }}</td>
+            <td>{{ row.markerseek_score|fmt2 }}</td>
             <td>{{ row.primer_available }}</td>
+            <td>
+              <a class="button-link table-action" href="/analyzer/results/{{ job.job_id }}/feature/{{ row.feature_id|urlencode }}">View details</a>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

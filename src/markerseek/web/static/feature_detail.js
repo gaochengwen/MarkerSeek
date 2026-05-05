@@ -9,6 +9,31 @@ function bySpecies(items, speciesGetter) {
   }, {});
 }
 
+const PLOT_MARGIN = {l: 50, r: 30, t: 30, b: 50};
+const PLOT_FONT = {family: "Inter, system-ui, sans-serif", size: 12};
+const GRID_COLOR = "#e6e6e6";
+const LEGEND = {
+  x: 1,
+  y: 1,
+  xanchor: "right",
+  yanchor: "top",
+  bgcolor: "rgba(255,255,255,0.7)",
+  bordercolor: "#d1d5db",
+  borderwidth: 1
+};
+const SPECIES_PALETTE = [
+  "#2563eb",
+  "#dc2626",
+  "#16a34a",
+  "#9333ea",
+  "#ea580c",
+  "#0891b2",
+  "#be123c",
+  "#4d7c0f",
+  "#7c3aed",
+  "#0f766e"
+];
+
 function renderPiCurve(payload) {
   const curve = payload.pi_curve || {positions: [], pi: []};
   const piByPosition = new Map(curve.positions.map((position, index) => [position, curve.pi[index] || 0]));
@@ -41,10 +66,11 @@ function renderPiCurve(payload) {
     }
   ];
   Plotly.newPlot("pi-curve", traces, {
-    margin: {l: 48, r: 18, t: 16, b: 44},
-    xaxis: {title: "Position"},
-    yaxis: {title: "Pi", rangemode: "tozero"},
-    legend: {orientation: "h"}
+    margin: PLOT_MARGIN,
+    font: PLOT_FONT,
+    xaxis: {title: "Position", gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR},
+    yaxis: {title: "Pi", rangemode: "tozero", gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR},
+    legend: LEGEND
   }, {responsive: true, displaylogo: false});
 }
 
@@ -67,7 +93,7 @@ function renderHaplotypeNetwork(payload) {
     };
   }).filter(Boolean);
   const groups = bySpecies(network.nodes || [], (node) => (node.species || ["Unknown"]).join(", "));
-  const traces = Object.entries(groups).map(([species, nodes]) => ({
+  const traces = Object.entries(groups).map(([species, nodes], index) => ({
     x: nodes.map((node) => node.x),
     y: nodes.map((node) => node.y),
     text: nodes.map((node) => `${node.id}<br>frequency: ${node.frequency}<br>${(node.species || []).join(", ")}`),
@@ -78,37 +104,44 @@ function renderHaplotypeNetwork(payload) {
     hoverinfo: "text",
     marker: {
       size: nodes.map((node) => 12 + Math.sqrt(node.frequency) * 10),
+      color: SPECIES_PALETTE[index % SPECIES_PALETTE.length],
       line: {color: "#ffffff", width: 1}
     }
   }));
   Plotly.newPlot("haplotype-net", traces, {
-    margin: {l: 20, r: 20, t: 16, b: 20},
+    margin: PLOT_MARGIN,
+    font: PLOT_FONT,
     shapes,
-    xaxis: {visible: false, zeroline: false},
-    yaxis: {visible: false, zeroline: false},
-    legend: {orientation: "h"}
+    xaxis: {visible: false, zeroline: false, gridcolor: GRID_COLOR, showgrid: true},
+    yaxis: {visible: false, zeroline: false, gridcolor: GRID_COLOR, showgrid: true},
+    legend: LEGEND
   }, {responsive: true, displaylogo: false});
 }
 
 function renderSpeciesPca(payload) {
   const pca = payload.species_pca || {samples: [], explained_variance: [0, 0]};
   const groups = bySpecies(pca.samples || [], (sample) => sample.species);
-  const traces = Object.entries(groups).map(([species, samples]) => ({
+  const traces = Object.entries(groups).map(([species, samples], index) => ({
     x: samples.map((sample) => sample.pc1),
     y: samples.map((sample) => sample.pc2),
-    text: samples.map((sample) => sample.sample_name),
+    text: samples.map((sample) => `${sample.sample_name}<br>${sample.species || "Unknown"}`),
     type: "scatter",
     mode: "markers",
     name: species,
     hovertemplate: "%{text}<br>PC1=%{x:.4f}<br>PC2=%{y:.4f}<extra></extra>",
-    marker: {size: 10, line: {color: "#ffffff", width: 1}}
+    marker: {
+      size: 10,
+      color: SPECIES_PALETTE[index % SPECIES_PALETTE.length],
+      line: {color: "#ffffff", width: 1}
+    }
   }));
   const variance = pca.explained_variance || [0, 0];
   Plotly.newPlot("species-pca", traces, {
-    margin: {l: 54, r: 18, t: 16, b: 48},
-    xaxis: {title: `PC1 (${((variance[0] || 0) * 100).toFixed(1)}%)`},
-    yaxis: {title: `PC2 (${((variance[1] || 0) * 100).toFixed(1)}%)`},
-    legend: {orientation: "h"}
+    margin: PLOT_MARGIN,
+    font: PLOT_FONT,
+    xaxis: {title: `PC1 (${((variance[0] || 0) * 100).toFixed(1)}%)`, gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR},
+    yaxis: {title: `PC2 (${((variance[1] || 0) * 100).toFixed(1)}%)`, gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR},
+    legend: LEGEND
   }, {responsive: true, displaylogo: false});
 }
 

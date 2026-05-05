@@ -48,6 +48,13 @@ SUPPORTED_UPLOAD_SUFFIXES = {".gb", ".gbk", ".genbank"}
 JOB_STATUS_ORDER = {"queued", "running", "succeeded", "failed", "expired"}
 DOWNLOADABLE_FILES = set(RESULT_FILENAMES) | {"results.zip"}
 FEATURE_DATA_KEYS = ("pi_curve", "snp_positions", "indel_positions", "haplotype_network", "species_pca", "primers")
+INTRA_DEPENDENT_METRICS = {
+    "intraspecific_divergence",
+    "nearest_neighbor_discrimination",
+    "barcoding_gap",
+    "misclassification_risk",
+}
+INSUFFICIENT_REPLICATES_TEXT = "Insufficient replicates"
 
 MAX_FILES = 30
 MIN_FILES = 2
@@ -75,6 +82,8 @@ class WebSettings:
 
 settings = WebSettings()
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+templates.env.filters["fmt2"] = lambda value: format_template_number(value, digits=2)
+templates.env.filters["is_na"] = lambda value: is_na_value(value)
 
 JOB_QUEUE: queue.Queue[str] = queue.Queue()
 DB_LOCK = threading.Lock()
@@ -143,10 +152,14 @@ def init_db() -> None:
                 params_json TEXT NOT NULL,
                 input_files_json TEXT NOT NULL,
                 reference_file TEXT,
-                error TEXT
+                error TEXT,
+                permanent INTEGER NOT NULL DEFAULT 0
             )
             """
         )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()}
+        if "permanent" not in columns:
+            conn.execute("ALTER TABLE jobs ADD COLUMN permanent INTEGER NOT NULL DEFAULT 0")
         conn.commit()
 
 
@@ -175,6 +188,7 @@ def create_job_record(
     params: dict[str, Any],
     input_files: list[str],
     reference_file: str | None,
+    permanent: bool = False,
 ) -> None:
     now = utcnow()
     expires_at = now + timedelta(days=settings.retention_days)
@@ -182,9 +196,9 @@ def create_job_record(
         """
         INSERT INTO jobs (
             job_id, status, project_name, created_at, updated_at, expires_at,
-            params_json, input_files_json, reference_file
+            params_json, input_files_json, reference_file, permanent
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             job_id,
@@ -192,10 +206,11 @@ def create_job_record(
             project_name,
             isoformat(now),
             isoformat(now),
-            isoformat(expires_at),
+            "permanent" if permanent else isoformat(expires_at),
             json.dumps(params, sort_keys=True),
             json.dumps(input_files),
             reference_file,
+            1 if permanent else 0,
         ),
     )
 
@@ -340,15 +355,41 @@ def display_job_params(params: dict[str, Any]) -> list[tuple[str, Any]]:
     return [(labels.get(key, key), params[key]) for key in ordered_keys if key not in hidden]
 
 
+def is_na_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip().upper() in {"", "NA", "NAN", "NONE", "NULL"}
+    if isinstance(value, float):
+        return math.isnan(value)
+    return False
+
+
+def format_template_number(value: Any, *, digits: int = 2) -> str:
+    if is_na_value(value):
+        return "NA"
+    if isinstance(value, bool):
+        return str(value)
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return f"{numeric:.{digits}f}"
+
+
 def read_marker_feature_rows(job_id: str) -> list[dict[str, str | bool]]:
-    path = outputs_dir(job_id) / "Marker_features.tsv"
+    path = outputs_dir(job_id) / "candidate_marker_features.tsv"
     if not path.exists():
         return []
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle, delimiter="\t"))
+    visible_rows: list[dict[str, str | bool]] = []
     for row in rows:
         row["has_detail"] = (feature_payload_dir(job_id) / f"{feature_id_safe(row.get('feature_id', ''))}.json").exists()
-    return rows
+        row["has_missing_replicate_metrics"] = any(is_na_value(row.get(metric)) for metric in INTRA_DEPENDENT_METRICS)
+        if row["has_detail"]:
+            visible_rows.append(row)
+    return visible_rows
 
 
 def load_feature_payload(job_id: str, feature_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -635,6 +676,7 @@ def row_to_job(row: sqlite3.Row) -> dict[str, Any]:
         "input_files": input_files,
         "reference_file": row["reference_file"],
         "error": row["error"],
+        "permanent": bool(row["permanent"]),
     }
 
 
@@ -694,8 +736,10 @@ def recover_unfinished_jobs() -> None:
 
 def cleanup_expired_jobs() -> None:
     now = utcnow()
-    rows = db_fetchall("SELECT job_id, status, expires_at FROM jobs WHERE status != 'expired'")
+    rows = db_fetchall("SELECT job_id, status, expires_at, permanent FROM jobs WHERE status != 'expired'")
     for row in rows:
+        if row["permanent"]:
+            continue
         try:
             expired = parse_iso(row["expires_at"]) <= now
         except ValueError:
@@ -936,6 +980,7 @@ def result_page(request: Request, job_id: str) -> HTMLResponse:
         if (outputs_dir(job_id) / name).exists()
     ]
     feature_rows = read_marker_feature_rows(job_id) if job["status"] == "succeeded" else []
+    show_replicate_hint = any(row.get("has_missing_replicate_metrics") for row in feature_rows)
     return templates.TemplateResponse(
         request,
         "result.html",
@@ -946,9 +991,15 @@ def result_page(request: Request, job_id: str) -> HTMLResponse:
             "manifest": manifest,
             "available_files": sorted(available_files),
             "feature_rows": feature_rows,
+            "show_replicate_hint": show_replicate_hint,
             "refresh": job["status"] in {"queued", "running"},
         },
     )
+
+
+@app.get("/analyzer/example", response_class=HTMLResponse)
+def example_page(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "example.html", {"demo_job_id": "MSK-EXAMPLE-DEMO"})
 
 
 @app.get("/analyzer/results/{job_id}/feature/{feature_id:path}/data.json")
