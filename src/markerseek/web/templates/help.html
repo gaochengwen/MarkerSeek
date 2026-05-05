@@ -1,26 +1,109 @@
 {% extends "base.html" %}
 {% block title %}Help - MarkerSeek{% endblock %}
 {% block content %}
-<section class="narrow-page">
+<section class="narrow-page help-page">
   <div class="section-heading">
     <h1>Help</h1>
-    <p>MarkerSeek computes nucleotide diversity across annotated chloroplast GenBank files.</p>
+    <p>MarkerSeek identifies plastid genome candidate markers from annotated GenBank files.</p>
   </div>
-  <section class="form-section">
-    <h2>Input requirements</h2>
+
+  <nav class="help-toc" aria-label="Help sections">
+    <a href="#overview">Overview</a>
+    <a href="#inputs">Inputs</a>
+    <a href="#parameters">Parameters</a>
+    <a href="#outputs">Output Files</a>
+    <a href="#score">Score Interpretation</a>
+    <a href="#primers">Primer Design</a>
+    <a href="#details">Detail Page Walkthrough</a>
+    <a href="#citation">Citation</a>
+    <a href="#faq">FAQ</a>
+  </nav>
+
+  <section id="overview" class="form-section">
+    <h2>Overview</h2>
+    <p>MarkerSeek aligns plastomes with MAFFT, estimates nucleotide diversity, detects high-Pi hotspot regions, scores candidate markers, and writes downloadable tables and figures. A permanent worked example is available on the <a href="/analyzer/example">Example page</a>.</p>
+  </section>
+
+  <section id="inputs" class="form-section">
+    <h2>Inputs</h2>
     <ul class="plain-list">
-      <li>Upload {{ max_files }} or fewer GenBank files with .gb, .gbk, or .genbank extensions.</li>
-      <li>At least two files are required for nucleotide diversity analysis.</li>
+      <li>Upload between 2 and {{ max_files }} GenBank files with <code>.gb</code>, <code>.gbk</code>, or <code>.genbank</code> extensions.</li>
       <li>Total upload size is limited to {{ max_upload_mb }} MB.</li>
+      <li>The selected reference defines coordinates, annotations, region labels, and candidate-marker names.</li>
+      <li>If no reference is selected, MarkerSeek uses the first sorted input file.</li>
     </ul>
   </section>
-  <section class="form-section">
-    <h2>Results</h2>
-    <ul class="plain-list">
-      <li>Each submission returns a job ID for status checks and downloads.</li>
-      <li>Successful jobs include Pi tables, feature tables, PDF figures, PNG previews, and a ZIP archive.</li>
-      <li>Files are retained for {{ retention_days }} days.</li>
-    </ul>
+
+  <section id="parameters" class="form-section">
+    <h2>Parameters</h2>
+    <div class="table-wrap">
+      <table class="hotspot-table">
+        <thead>
+          <tr><th>Parameter</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Hotspot window / step</td><td>Controls the sliding-window Pi calculation used to identify high-diversity regions.</td></tr>
+          <tr><td>Hotspot mode / value</td><td>Selects top percentage, top N, or windows above an explicit Pi threshold.</td></tr>
+          <tr><td>Similarity window / step</td><td>Controls the mVISTA-style pairwise similarity figure.</td></tr>
+          <tr><td>Primer design</td><td>Runs primer3, in-silico PCR, amplicon scoring, and primer-summary output for candidate markers.</td></tr>
+          <tr><td>MAFFT threads</td><td>Limits alignment worker threads to fit the server.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="outputs" class="form-section">
+    <h2>Output Files</h2>
+    <div class="table-wrap">
+      <table class="hotspot-table">
+        <thead>
+          <tr><th>File</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>pi_windows.tsv</code></td><td>Sliding-window Pi values, region labels, overlap labels, and hotspot flags.</td></tr>
+          <tr><td><code>candidate_marker_features.tsv</code></td><td>25-column feature table with Pi, diagnostic metrics, alignment reliability, primer availability, and MarkerSeek score.</td></tr>
+          <tr><td><code>haplotype_assignments.tsv</code></td><td>Feature-level haplotype assignment for each sample.</td></tr>
+          <tr><td><code>sample_metadata.tsv</code></td><td>Sample names, inferred species, and input source paths.</td></tr>
+          <tr><td><code>primers.tsv</code></td><td>23-column primer table written when primer design is enabled; <code>primer_id</code> uses <code>{label_name}_p{rank}</code>.</td></tr>
+          <tr><td><code>primer_amplicons.fasta</code></td><td>Successful in-silico PCR products by primer and sample.</td></tr>
+          <tr><td><code>primer_amplicons_alignment.fasta</code></td><td>MAFFT alignments of primer amplicon groups.</td></tr>
+          <tr><td><code>primer_summary.png</code></td><td>Primer amplicon length and cross-sample success summary.</td></tr>
+          <tr><td><code>pi_plot.{png,pdf}</code></td><td>Publication-oriented Pi plot with plastome regions and hotspot labels.</td></tr>
+          <tr><td><code>similarity_plot.{png,pdf}</code></td><td>Pairwise similarity tracks against the reference.</td></tr>
+          <tr><td><code>feature_payload/*.json</code></td><td>Internal web payloads for candidate-marker detail pages.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="score" class="form-section">
+    <h2>Score Interpretation</h2>
+    <p>The MarkerSeek score is a 0-100 normalized weighted sum. It rewards Pi, variable-site density, informative indels, conserved flanks, alignment reliability, species resolution, barcoding gap, nearest-neighbor discrimination, and suitable marker length. Missing within-species diagnostics contribute no positive score and are shown as insufficient replicates when the dataset lacks at least two samples per species.</p>
+  </section>
+
+  <section id="primers" class="form-section">
+    <h2>Primer Design</h2>
+    <p>Primer design scans conserved flanks around candidate markers, calls primer3, then tests each pair against every sample by in-silico PCR. The 3-prime anchor must match exactly, while the remaining primer body can tolerate the configured mismatch count. Primer scores combine primer3 penalty, cross-sample amplification success, and amplicon information content.</p>
+  </section>
+
+  <section id="details" class="form-section">
+    <h2>Detail Page Walkthrough</h2>
+    <p>Use the Candidate markers table's View details button to inspect a hotspot. The detail page shows metadata, a Pi curve with SNP and indel positions, an alignment viewer, haplotype network, species PCA, primer ranking, and feature-level FASTA/CSV downloads.</p>
+  </section>
+
+  <section id="citation" class="form-section">
+    <h2>Citation</h2>
+    <p>Please cite MarkerSeek and the underlying methods and software: Hebert et al. 2003, Meyer and Paulay 2005, Untergasser et al. 2012, Katoh and Standley 2013, and Nei and Li 1979.</p>
+  </section>
+
+  <section id="faq" class="form-section">
+    <h2>FAQ</h2>
+    <h3>Why do some diagnostics say "Insufficient replicates"?</h3>
+    <p>Those diagnostics require at least two samples from the same species. Single-sample species can support interspecific comparisons but cannot estimate within-species behavior.</p>
+    <h3>Why are only some rows clickable?</h3>
+    <p>The Candidate markers table contains hotspot candidates with detail payloads, so every displayed row is clickable. The downloadable feature table contains the broader feature inventory.</p>
+    <h3>How long are web jobs retained?</h3>
+    <p>Ordinary jobs are retained for {{ retention_days }} days. The bundled example job is permanent.</p>
   </section>
 </section>
 {% endblock %}
