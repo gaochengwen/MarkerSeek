@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from markerseek.models import PrimerResult
 from markerseek.primer import AmpliconHit, PrimerPair, fuzzy_search, in_silico_pcr, reverse_complement, score_primer_pair
 
 
@@ -99,3 +100,32 @@ def test_score_pair_rewards_high_cross_species() -> None:
     high_score = score_primer_pair(high_pair, high_amplicons, total_samples=10)
 
     assert high_score > low_score
+
+
+def test_primer_id_format() -> None:
+    result = PrimerResult(
+        label_name="trnH-GUG-psbA",
+        rank=2,
+        fwd_seq="ACGTACGTACGTACGTAC",
+        rev_seq="TGCATGCATGCATGCATG",
+        fwd_len=18,
+        rev_len=18,
+        fwd_gc=50.0,
+        rev_gc=50.0,
+        fwd_tm=58.0,
+        rev_tm=58.0,
+        fwd_self_any_th=0.0,
+        rev_self_any_th=0.0,
+        primer3_penalty=0.1,
+        target_start=1,
+        target_end=200,
+        amplicon_min_len=100,
+        amplicon_max_len=120,
+        amplicon_mean_len=110.0,
+        cross_species_success_rate=1.0,
+        amplicon_variable_sites=5,
+        amplicon_indel_sites=0,
+        primer_score=90.0,
+    )
+
+    assert result.primer_id == "trnH-GUG-psbA_p2"

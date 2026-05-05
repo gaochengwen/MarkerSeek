@@ -356,9 +356,9 @@ def design_primers_for_hotspots(
         feature.primer_available = "yes"
         for rank, (pair, amplicons) in enumerate(scored_pairs, start=1):
             pair.rank = rank
-            pair_id = f"{feature.feature_id}_p{rank}"
-            result.primers.append(_primer_result(feature.feature_id, pair_id, pair))
-            result.primer_amplicons[pair_id] = amplicons
+            primer_result = _primer_result(feature.label_name, pair)
+            result.primers.append(primer_result)
+            result.primer_amplicons[primer_result.primer_id] = amplicons
 
 
 def _successful_amplicons(
@@ -404,10 +404,9 @@ def _align_amplicons_for_stats(amplicons: dict[str, str], mafft_bin: str) -> dic
     return {record.id: str(record.seq).upper() for record in SeqIO.parse(StringIO(completed.stdout), "fasta")}
 
 
-def _primer_result(feature_id: str, pair_id: str, pair: PrimerPair) -> PrimerResult:
+def _primer_result(label_name: str, pair: PrimerPair) -> PrimerResult:
     return PrimerResult(
-        pair_id=pair_id,
-        feature_id=feature_id,
+        label_name=label_name,
         rank=pair.rank,
         fwd_seq=pair.fwd_seq,
         rev_seq=pair.rev_seq,

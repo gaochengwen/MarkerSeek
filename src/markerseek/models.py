@@ -124,8 +124,7 @@ class FeatureResult:
 
 @dataclass
 class PrimerResult:
-    pair_id: str
-    feature_id: str
+    label_name: str
     rank: int
     fwd_seq: str
     rev_seq: str
@@ -147,6 +146,10 @@ class PrimerResult:
     amplicon_variable_sites: int
     amplicon_indel_sites: int
     primer_score: float
+    primer_id: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.primer_id = f"{self.label_name}_p{self.rank}"
 
 
 @dataclass

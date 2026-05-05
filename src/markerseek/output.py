@@ -18,7 +18,7 @@ from .visualisation import compute_haplotype_network, compute_species_pca
 
 RESULT_FILENAMES = (
     "pi_windows.tsv",
-    "Marker_features.tsv",
+    "candidate_marker_features.tsv",
     "haplotype_assignments.tsv",
     "sample_metadata.tsv",
     "pi_plot.pdf",
@@ -60,8 +60,8 @@ MARKER_FEATURE_COLUMNS = [
 ]
 
 PRIMER_COLUMNS = [
-    "pair_id",
-    "feature_id",
+    "primer_id",
+    "label_name",
     "rank",
     "fwd_seq",
     "rev_seq",
@@ -200,8 +200,8 @@ def write_primers_tsv(path: Path, primers) -> None:
         for row in primers:
             writer.writerow(
                 [
-                    row.pair_id,
-                    row.feature_id,
+                    row.primer_id,
+                    row.label_name,
                     row.rank,
                     row.fwd_seq,
                     row.rev_seq,
@@ -249,7 +249,7 @@ def write_feature_payloads(outdir: str | Path, result: AnalysisResult) -> None:
             sample_name: feature.haplotypes[index] if index < len(feature.haplotypes) else "NA"
             for index, sample_name in enumerate(result.sample_order)
         }
-        primers = [_primer_payload(primer) for primer in result.primers if primer.feature_id == feature.feature_id]
+        primers = [_primer_payload(primer) for primer in result.primers if primer.label_name == feature.label_name]
         payload = {
             "feature": _feature_payload(feature),
             "pi_curve": {
@@ -274,8 +274,8 @@ def write_feature_payloads(outdir: str | Path, result: AnalysisResult) -> None:
 def write_primer_amplicons_fasta(path: Path, primers, primer_amplicons: dict[str, dict[str, str]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for primer in primers:
-            for sample_name, sequence in primer_amplicons.get(primer.pair_id, {}).items():
-                handle.write(f">{primer.pair_id}|{sample_name}\n")
+            for sample_name, sequence in primer_amplicons.get(primer.primer_id, {}).items():
+                handle.write(f">{primer.primer_id}|{sample_name}\n")
                 handle.write(_wrap_fasta(sequence))
                 handle.write("\n")
 
@@ -283,7 +283,7 @@ def write_primer_amplicons_fasta(path: Path, primers, primer_amplicons: dict[str
 def align_primer_amplicons(primers, primer_amplicons: dict[str, dict[str, str]], mafft_bin: str) -> str:
     blocks: list[str] = []
     for primer in primers:
-        amplicons = primer_amplicons.get(primer.pair_id, {})
+        amplicons = primer_amplicons.get(primer.primer_id, {})
         if len(amplicons) < 2:
             continue
         with tempfile.TemporaryDirectory(prefix="markerseek_primer_align_") as tmpdir:
@@ -302,7 +302,7 @@ def align_primer_amplicons(primers, primer_amplicons: dict[str, dict[str, str]],
             completed = subprocess.run(command, check=True, capture_output=True, text=True)
         block = completed.stdout.strip()
         if block:
-            blocks.append(f"# pair_id={primer.pair_id}\n{block}\n")
+            blocks.append(f"# primer_id={primer.primer_id}\n{block}\n")
     return "\n".join(blocks)
 
 
@@ -325,7 +325,7 @@ def write_analysis_outputs(
     output_dir = Path(outdir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     write_windows_tsv(output_dir / "pi_windows.tsv", result.windows)
-    write_marker_features_tsv(output_dir / "Marker_features.tsv", result.features)
+    write_marker_features_tsv(output_dir / "candidate_marker_features.tsv", result.features)
     write_haplotype_assignments_tsv(output_dir / "haplotype_assignments.tsv", result.features, result.sample_order)
     write_sample_metadata_tsv(output_dir / "sample_metadata.tsv", result.sample_metadata)
     plot_pi_figure(
@@ -425,8 +425,8 @@ def _feature_payload(feature: FeatureResult) -> dict:
 
 def _primer_payload(primer: PrimerResult) -> dict:
     return {
-        "pair_id": primer.pair_id,
-        "feature_id": primer.feature_id,
+        "primer_id": primer.primer_id,
+        "label_name": primer.label_name,
         "rank": primer.rank,
         "fwd_seq": primer.fwd_seq,
         "rev_seq": primer.rev_seq,

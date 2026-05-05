@@ -1127,7 +1127,7 @@ def plot_primer_summary(result: AnalysisResult, outdir: Path) -> Path | None:
     if not result.primers:
         return None
 
-    pair_ids = [primer.pair_id for primer in result.primers]
+    primer_ids = [primer.primer_id for primer in result.primers]
     samples = result.sample_order or sorted(
         {
             sample_name
@@ -1139,12 +1139,12 @@ def plot_primer_summary(result: AnalysisResult, outdir: Path) -> Path | None:
         samples = ["samples"]
 
     length_data = [
-        [len(sequence) for sequence in result.primer_amplicons.get(pair_id, {}).values()] or [0]
-        for pair_id in pair_ids
+        [len(sequence) for sequence in result.primer_amplicons.get(primer_id, {}).values()] or [0]
+        for primer_id in primer_ids
     ]
     heatmap = [
-        [1 if sample_name in result.primer_amplicons.get(pair_id, {}) else 0 for sample_name in samples]
-        for pair_id in pair_ids
+        [1 if sample_name in result.primer_amplicons.get(primer_id, {}) else 0 for sample_name in samples]
+        for primer_id in primer_ids
     ]
 
     plt.rcParams.update(
@@ -1158,8 +1158,8 @@ def plot_primer_summary(result: AnalysisResult, outdir: Path) -> Path | None:
         }
     )
 
-    width_in = max(7.2, min(14.0, 0.32 * max(len(pair_ids), 1)))
-    height_in = max(4.6, min(14.0, 2.2 + (0.18 * len(pair_ids)) + (0.03 * len(samples))))
+    width_in = max(7.2, min(14.0, 0.32 * max(len(primer_ids), 1)))
+    height_in = max(4.6, min(14.0, 2.2 + (0.18 * len(primer_ids)) + (0.03 * len(samples))))
     fig, (length_ax, heatmap_ax) = plt.subplots(
         2,
         1,
@@ -1169,7 +1169,7 @@ def plot_primer_summary(result: AnalysisResult, outdir: Path) -> Path | None:
     )
     fig.patch.set_facecolor("white")
 
-    positions = list(range(1, len(pair_ids) + 1))
+    positions = list(range(1, len(primer_ids) + 1))
     length_ax.boxplot(
         length_data,
         positions=positions,
@@ -1183,14 +1183,14 @@ def plot_primer_summary(result: AnalysisResult, outdir: Path) -> Path | None:
     )
     length_ax.set_ylabel("Amplicon length (bp)")
     length_ax.set_xticks(positions)
-    length_ax.set_xticklabels(pair_ids, rotation=90, ha="center")
+    length_ax.set_xticklabels(primer_ids, rotation=90, ha="center")
     length_ax.grid(axis="y", color=GRID_COLOR, linewidth=0.38, linestyle=(0, (3, 3)))
     for side, spine in length_ax.spines.items():
         spine.set_visible(side in {"left", "bottom"})
 
     heatmap_ax.imshow(heatmap, aspect="auto", cmap="Greens", vmin=0, vmax=1, interpolation="nearest")
-    heatmap_ax.set_yticks(range(len(pair_ids)))
-    heatmap_ax.set_yticklabels(pair_ids)
+    heatmap_ax.set_yticks(range(len(primer_ids)))
+    heatmap_ax.set_yticklabels(primer_ids)
     heatmap_ax.set_xticks(range(len(samples)))
     heatmap_ax.set_xticklabels(samples, rotation=90, ha="center")
     heatmap_ax.set_ylabel("Primer pair")
