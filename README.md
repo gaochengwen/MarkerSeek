@@ -1,8 +1,6 @@
 # MarkerSeek
-
-MarkerSeek is a CLI and web application for discovering plastid-genome regions that are suitable as DNA-barcoding candidates. It aligns annotated GenBank plastomes, estimates nucleotide diversity (Pi), identifies high-polymorphism hotspot regions, scores candidate markers using diagnostic and primer-design evidence, and serves the results through tables, figures, and interactive hotspot-detail pages.
 <img src="MarkerSeek-logo.svg" width="400">
-    MarkerSeek is a command-line toolkit for chloroplast nucleotide diversity analysis. It reads multiple annotated GenBank files, aligns the full plastomes with MAFFT, calculates site-wise and window-wise Pi values, summarises Pi for genes and intergenic spacers, labels high-polymorphism regions, and exports publication-style figures tuned for Nature-size layouts. In addition to the command-line implementation, MarkerSeek is also provided as a web-based tool, available at http://www.bioseqhub.cn/markerseek.
+MarkerSeek is a CLI and web application for discovering plastid-genome regions that are suitable as DNA-barcoding candidates. It aligns annotated GenBank plastomes, estimates nucleotide diversity (Pi), identifies high-polymorphism hotspot regions, scores candidate markers using diagnostic and primer-design evidence, and serves the results through tables, figures, and interactive hotspot-detail pages, available at http://www.bioseqhub.cn/markerseek..
 
 A multi-genus catalogue (`/database`) collects pre-computed analysis drops across thousands of genera, with browse, search, taxonomy filters, and per-genus detail pages reusing the analyzer's hotspot views.
 
