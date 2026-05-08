@@ -1,6 +1,8 @@
 # MarkerSeek
 
 MarkerSeek is a CLI and web application for discovering plastid-genome regions that are suitable as DNA-barcoding candidates. It aligns annotated GenBank plastomes, estimates nucleotide diversity (Pi), identifies high-polymorphism hotspot regions, scores candidate markers using diagnostic and primer-design evidence, and serves the results through tables, figures, and interactive hotspot-detail pages.
+<img src="MarkerSeek-logo.svg" width="400">
+    MarkerSeek is a command-line toolkit for chloroplast nucleotide diversity analysis. It reads multiple annotated GenBank files, aligns the full plastomes with MAFFT, calculates site-wise and window-wise Pi values, summarises Pi for genes and intergenic spacers, labels high-polymorphism regions, and exports publication-style figures tuned for Nature-size layouts. In addition to the command-line implementation, MarkerSeek is also provided as a web-based tool, available at http://www.bioseqhub.cn/markerseek.
 
 A multi-genus catalogue (`/database`) collects pre-computed analysis drops across thousands of genera, with browse, search, taxonomy filters, and per-genus detail pages reusing the analyzer's hotspot views.
 
@@ -54,6 +56,21 @@ markerseek analyze test_data \
 ```
 
 Without `--reference`, MarkerSeek uses the first sorted input file as the reference. The reference defines the coordinate system, annotation labels, gene and intergenic-spacer catalogue, and inferred LSC / IRb / SSC / IRa regions.
+## Key Parameters
+
+- `--reference`: GenBank file used as the coordinate and annotation reference. Defaults to the first input.
+- `--window`: sliding-window size in bp, default `600`.
+- `--step`: sliding-window step in bp, default `200`.
+- `--hotspot-mode`: `top-percent`, `top-n`, or `threshold`. Default `top-percent`.
+- `--hotspot-value`: paired with `--hotspot-mode`. Top percentage (default `3` = top 3%), top count, or minimum Pi value.
+- `--label-mode`: `peak-only`, `all`, or `none`. Default `peak-only` shows one label per cluster of consecutive hotspot windows.
+- `--label-max`: maximum number of hotspot labels drawn on the Pi figure. Default: no limit.
+- `--label-min-distance`: minimum midpoint spacing in bp between labeled hotspots. Default `0` (label every peak above the threshold).
+- `--similarity-window`: window size in bp for the similarity figure. Default `200`.
+- `--similarity-step`: step size in bp for the similarity figure. Default `60`.
+- `--similarity-floor`: lower bound of the similarity y-axis (fraction in 0–1). Default `0.5`.
+- `--no-similarity-plot`: skip generating `similarity_plot.{pdf,png}`.
+- `--mafft-bin`: MAFFT executable or absolute path. Default `mafft`.
 
 Manual region boundaries can override the automatic inference:
 
