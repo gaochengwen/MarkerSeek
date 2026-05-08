@@ -82,10 +82,6 @@
         </label>
       </div>
       <p class="parameter-note">Defaults suit plastome Pi plots and support finer or smoother hotspot detection.</p>
-      <label class="check-field">
-        <input type="checkbox" name="primer_design" {% if values.primer_design == "on" %}checked{% endif %}>
-        <span>Design primers for hotspot regions</span>
-      </label>
     </div>
     <input type="hidden" name="mafft_threads" value="{{ values.mafft_threads }}">
     <input type="hidden" name="similarity_floor" value="{{ values.similarity_floor }}">
@@ -148,6 +144,49 @@
     </div>
   </section>
 
+  <section class="form-section primer-design-section">
+    <div class="section-heading">
+      <h2>Primer design</h2>
+      <p>Optional primer screening for candidate hotspot regions.</p>
+    </div>
+    <div class="primer-design-panel">
+      <fieldset class="primer-settings" id="primer-settings">
+        <legend>Primer parameters</legend>
+        <div class="field-grid three-col primer-field-grid">
+          <label class="field">
+            <span>Length min</span>
+            <input type="number" name="primer_len_min" min="1" value="{{ values.primer_len_min }}">
+          </label>
+          <label class="field">
+            <span>Length max</span>
+            <input type="number" name="primer_len_max" min="1" value="{{ values.primer_len_max }}">
+          </label>
+          <label class="field">
+            <span>Mismatch</span>
+            <input type="number" name="primer_mismatch" min="0" value="{{ values.primer_mismatch }}">
+          </label>
+          <label class="field">
+            <span>Amplicon min</span>
+            <input type="number" name="primer_amplicon_min" min="1" value="{{ values.primer_amplicon_min }}">
+          </label>
+          <label class="field">
+            <span>Amplicon max</span>
+            <input type="number" name="primer_amplicon_max" min="1" value="{{ values.primer_amplicon_max }}">
+          </label>
+          <label class="field">
+            <span>Pairs returned</span>
+            <input type="number" name="primer_num_return" min="1" value="{{ values.primer_num_return }}">
+          </label>
+        </div>
+      </fieldset>
+      <label class="check-field primer-design-toggle">
+        <input type="checkbox" name="skip_primer_design" id="skip-primer-design-toggle" {% if values.skip_primer_design == "on" %}checked{% endif %}>
+        <span>Skip primer design</span>
+      </label>
+      <p class="parameter-note">Uses conserved flanks, primer3, and in-silico PCR to report primer availability.</p>
+    </div>
+  </section>
+
   <section class="upload-progress" id="upload-progress" aria-live="polite" hidden>
     <div class="upload-progress-header">
       <strong>Uploading files</strong>
@@ -183,6 +222,8 @@ const fileClearButton = document.getElementById("file-clear-button");
 const fileSelectionStatus = document.getElementById("file-selection-status");
 const selectedFileList = document.getElementById("selected-file-list");
 const fileDrop = document.getElementById("file-drop");
+const skipPrimerDesignToggle = document.getElementById("skip-primer-design-toggle");
+const primerSettings = document.getElementById("primer-settings");
 const maxFiles = {{ max_files }};
 const minFiles = {{ min_files }};
 
@@ -282,7 +323,19 @@ function updateProgress(loaded, total) {
   uploadPercent.textContent = `${percent}%`;
 }
 
+function syncPrimerSettingsState() {
+  if (!skipPrimerDesignToggle || !primerSettings) {
+    return;
+  }
+  primerSettings.disabled = skipPrimerDesignToggle.checked;
+}
+
 fileInput.addEventListener("change", handleFileSelectionChange);
+
+if (skipPrimerDesignToggle) {
+  skipPrimerDesignToggle.addEventListener("change", syncPrimerSettingsState);
+  syncPrimerSettingsState();
+}
 
 fileSelectButton.addEventListener("click", () => {
   fileInput.click();

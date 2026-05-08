@@ -53,6 +53,18 @@ def _label_for_region(region_name: str) -> str:
     return "IR" if region_name.startswith("IR") else region_name
 
 
+def _has_informative_region_partition(result: AnalysisResult) -> bool:
+    """Return False for the no-IR fallback's single full-genome region."""
+
+    if not result.regions:
+        return False
+    if len(result.regions) == 1:
+        region = result.regions[0]
+        if region.name == "Genome" and region.start == 0 and region.end == result.genome_length:
+            return False
+    return True
+
+
 def _preferred_font_family() -> str:
     available_fonts = {font.name for font in font_manager.fontManager.ttflist}
     for candidate in ("Arial", "Helvetica", "Liberation Sans", "DejaVu Sans"):
@@ -647,15 +659,23 @@ def plot_pi_figure(
     height_in = FIGURE_HEIGHT_MM / MM_PER_INCH
     fig = plt.figure(figsize=(width_in, height_in), constrained_layout=False)
     fig.patch.set_facecolor("white")
-    grid = fig.add_gridspec(5, 1, height_ratios=[49.2, 4.8, 9.0, 3.0, 10.0], hspace=0.025)
+    show_region_bar = _has_informative_region_partition(result)
+    height_ratios = [49.2, 4.8, 9.0, 3.0, 10.0] if show_region_bar else [54.0, 9.0, 3.0, 10.0]
+    grid = fig.add_gridspec(len(height_ratios), 1, height_ratios=height_ratios, hspace=0.025)
     ax = fig.add_subplot(grid[0])
-    region_ax = fig.add_subplot(grid[1], sharex=ax)
-    feature_ax = fig.add_subplot(grid[2], sharex=ax)
-    spacer_ax = fig.add_subplot(grid[3])
-    legend_ax = fig.add_subplot(grid[4])
+    cursor = 1
+    if show_region_bar:
+        region_ax = fig.add_subplot(grid[cursor], sharex=ax)
+        cursor += 1
+    feature_ax = fig.add_subplot(grid[cursor], sharex=ax)
+    cursor += 1
+    spacer_ax = fig.add_subplot(grid[cursor])
+    cursor += 1
+    legend_ax = fig.add_subplot(grid[cursor])
     spacer_ax.axis("off")
 
-    _plot_region_bar(region_ax, result)
+    if show_region_bar:
+        _plot_region_bar(region_ax, result)
     _plot_feature_tracks(feature_ax, result)
     _plot_function_legend(legend_ax)
 
@@ -990,7 +1010,7 @@ def plot_similarity_figure(
     Layout (top to bottom):
       gene-annotation track  →  N similarity rows (one per non-reference
       sample, ``floor``–100% identity)  →  shared x-axis tick labels  →
-      LSC/IRb/SSC/IRa region bar  →  feature-category legend.
+      LSC/IRb/SSC/IRa region bar when available  →  feature-category legend.
 
     Per-sample background tinting follows the same FEATURE_COLORS palette as
     the legend, so exon spans (CDS / tRNA / rRNA) appear as faint coloured
@@ -1042,6 +1062,7 @@ def plot_similarity_figure(
     spacer_region_mm = 1.8
     legend_mm = 7.5
     bottom_padding_mm = 1.5
+    show_region_bar = _has_informative_region_partition(result)
 
     width_in = FIGURE_WIDTH_MM / MM_PER_INCH
     height_mm = (
@@ -1050,8 +1071,7 @@ def plot_similarity_figure(
         + per_sample_mm * n_samples
         + xaxis_strip_mm
         + spacer_xaxis_mm
-        + region_bar_mm
-        + spacer_region_mm
+        + (region_bar_mm + spacer_region_mm if show_region_bar else 0.0)
         + legend_mm
         + bottom_padding_mm
     )
@@ -1066,10 +1086,10 @@ def plot_similarity_figure(
         *([per_sample_mm] * n_samples),
         xaxis_strip_mm,
         spacer_xaxis_mm,
-        region_bar_mm,
-        spacer_region_mm,
         legend_mm,
     ]
+    if show_region_bar:
+        height_ratios[-1:-1] = [region_bar_mm, spacer_region_mm]
     grid = fig.add_gridspec(len(height_ratios), 1, height_ratios=height_ratios, hspace=0.0)
 
     cursor = 0
@@ -1085,10 +1105,11 @@ def plot_similarity_figure(
     cursor += 1
     fig.add_subplot(grid[cursor]).axis("off")
     cursor += 1
-    region_ax = fig.add_subplot(grid[cursor])
-    cursor += 1
-    fig.add_subplot(grid[cursor]).axis("off")
-    cursor += 1
+    if show_region_bar:
+        region_ax = fig.add_subplot(grid[cursor])
+        cursor += 1
+        fig.add_subplot(grid[cursor]).axis("off")
+        cursor += 1
     legend_ax = fig.add_subplot(grid[cursor])
 
     _plot_feature_tracks(feature_ax, result, show_xaxis=False)
@@ -1104,9 +1125,11 @@ def plot_similarity_figure(
             floor=similarity_floor,
             is_last=(index == n_samples - 1),
         )
-    _draw_region_boundaries(sample_axes, result)
+    if show_region_bar:
+        _draw_region_boundaries(sample_axes, result)
     _plot_xaxis_strip(xtick_ax, result.genome_length)
-    _plot_region_bar(region_ax, result)
+    if show_region_bar:
+        _plot_region_bar(region_ax, result)
     _plot_function_legend(legend_ax)
 
     bottom_fraction = bottom_padding_mm / height_mm
@@ -1131,19 +1154,23 @@ def plot_primer_summary(result: AnalysisResult, outdir: Path) -> Path | None:
     samples = result.sample_order or sorted(
         {
             sample_name
-            for amplicons in result.primer_amplicons.values()
-            for sample_name in amplicons
+            for samples_set in result.primer_amplicon_samples.values()
+            for sample_name in samples_set
         }
     )
     if not samples:
         samples = ["samples"]
 
-    length_data = [
-        [len(sequence) for sequence in result.primer_amplicons.get(primer_id, {}).values()] or [0]
-        for primer_id in primer_ids
+    # Reference amplicon length per primer pair (single value — the new design
+    # only resolves amplicon coordinates against the reference sequence, while
+    # the cross-species check is binding-only and does not extract amplicons).
+    length_values = [
+        primer.amplicon_mean_len if primer.amplicon_mean_len else 0
+        for primer in result.primers
     ]
     heatmap = [
-        [1 if sample_name in result.primer_amplicons.get(primer_id, {}) else 0 for sample_name in samples]
+        [1 if sample_name in result.primer_amplicon_samples.get(primer_id, set()) else 0
+         for sample_name in samples]
         for primer_id in primer_ids
     ]
 
@@ -1170,18 +1197,15 @@ def plot_primer_summary(result: AnalysisResult, outdir: Path) -> Path | None:
     fig.patch.set_facecolor("white")
 
     positions = list(range(1, len(primer_ids) + 1))
-    length_ax.boxplot(
-        length_data,
-        positions=positions,
-        widths=0.62,
-        patch_artist=True,
-        showfliers=False,
-        boxprops={"facecolor": "#e7eef7", "edgecolor": "#4a647d", "linewidth": 0.65},
-        whiskerprops={"color": "#4a647d", "linewidth": 0.65},
-        capprops={"color": "#4a647d", "linewidth": 0.65},
-        medianprops={"color": "#1f2d3a", "linewidth": 0.85},
+    length_ax.bar(
+        positions,
+        length_values,
+        width=0.62,
+        color="#e7eef7",
+        edgecolor="#4a647d",
+        linewidth=0.65,
     )
-    length_ax.set_ylabel("Amplicon length (bp)")
+    length_ax.set_ylabel("Reference amplicon length (bp)")
     length_ax.set_xticks(positions)
     length_ax.set_xticklabels(primer_ids, rotation=90, ha="center")
     length_ax.grid(axis="y", color=GRID_COLOR, linewidth=0.38, linestyle=(0, (3, 3)))

@@ -396,6 +396,14 @@ h1 {
   padding: 30px;
 }
 
+.wide-section {
+  grid-template-columns: 1fr;
+}
+
+.section-content {
+  min-width: 0;
+}
+
 .section-heading h2 {
   margin-bottom: 8px;
   color: #13283d;
@@ -603,6 +611,10 @@ button:disabled,
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.three-col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .four-col {
   grid-template-columns: 1.4fr 0.82fr 0.82fr 0.9fr;
   align-items: end;
@@ -666,6 +678,48 @@ button:disabled,
   width: 18px;
   height: 18px;
   accent-color: var(--primary-2);
+}
+
+.primer-design-panel {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.primer-design-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.primer-design-toggle span {
+  line-height: 1.35;
+}
+
+.primer-settings {
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.primer-settings legend {
+  margin: 0 0 10px;
+  padding: 0;
+  color: #30485f;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.primer-settings:disabled {
+  opacity: 0.58;
+}
+
+.primer-settings:disabled input {
+  cursor: not-allowed;
 }
 
 .parameter-note {
@@ -802,6 +856,7 @@ button:disabled,
     gap: 18px;
   }
 
+  .three-col,
   .four-col {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -851,6 +906,7 @@ button:disabled,
   }
 
   .two-col,
+  .three-col,
   .four-col {
     grid-template-columns: 1fr;
   }
@@ -1102,6 +1158,11 @@ h1 {
   max-width: 820px;
 }
 
+.example-page,
+.help-page {
+  max-width: 1120px;
+}
+
 .status-header,
 .lookup-form {
   border: 1px solid rgba(220, 230, 241, 0.96);
@@ -1318,6 +1379,15 @@ figure,
   gap: 16px;
 }
 
+.result-figures-section .figure-grid {
+  grid-template-columns: 1fr;
+  justify-items: start;
+}
+
+.result-figures-section figure {
+  width: 100%;
+}
+
 figure {
   margin: 0;
   padding: 12px;
@@ -1368,15 +1438,39 @@ figcaption {
   background: #eef5fb;
 }
 
+.hotspot-table tfoot td {
+  padding: 11px 12px;
+  color: #4b5563;
+  font-size: 0.86rem;
+  font-weight: 750;
+  line-height: 1.45;
+  background: #f9fafb;
+}
+
 .hotspot-table tbody tr:nth-child(even) td {
   background: #f8fbff;
 }
 
+.candidate-marker-section .hotspot-table {
+  min-width: 880px;
+}
+
+.button-link.table-action,
 .table-action {
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 26px;
+  padding: 2px 12px;
   border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.1;
+  box-shadow: none;
   white-space: nowrap;
+}
+
+.button-link.table-action:hover,
+.table-action:hover {
+  transform: none;
+  box-shadow: 0 4px 10px rgba(8, 145, 178, 0.18);
 }
 
 .diagnostic-hint {
@@ -1406,6 +1500,147 @@ figcaption {
   color: #083344;
   border-color: #9fc2d8;
   background: #f1fbfd;
+}
+
+.example-hero .lead {
+  max-width: 860px;
+}
+
+.example-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.example-meta-grid div,
+.example-note,
+.help-callout,
+.help-figure-panel {
+  border: 1px solid rgba(220, 230, 241, 0.92);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.example-meta-grid dt,
+.example-meta-grid dd {
+  margin: 0;
+}
+
+.example-meta-grid div {
+  padding: 12px 13px;
+}
+
+.example-meta-grid dt {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.example-meta-grid dd {
+  color: #18324a;
+  font-size: 0.92rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.file-token {
+  display: inline;
+  color: #14384f;
+  font-family: inherit;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.example-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.example-note {
+  padding: 16px;
+}
+
+.example-note strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #18324a;
+}
+
+.example-note p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.example-plot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.example-plot-grid > div:last-child {
+  grid-column: 1 / -1;
+}
+
+.example-section h3,
+.help-page h3 {
+  margin: 0 0 10px;
+  color: #18324a;
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.help-visual-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.78fr) minmax(0, 1.22fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.help-callout {
+  padding: 16px;
+}
+
+.help-callout strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #18324a;
+}
+
+.help-callout p,
+.faq-list p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.help-callout p + p {
+  margin-top: 10px;
+}
+
+.help-figure-panel {
+  margin: 0;
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.help-workflow {
+  margin: 0;
+}
+
+.faq-list {
+  display: grid;
+  gap: 12px;
+}
+
+.faq-list article {
+  padding: 16px;
+  border: 1px solid rgba(220, 230, 241, 0.92);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .help-toc {
@@ -1472,6 +1707,10 @@ figcaption {
 
 @media (max-width: 980px) {
   .summary-grid,
+  .example-meta-grid,
+  .example-two-col,
+  .example-plot-grid,
+  .help-visual-grid,
   .figure-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1479,6 +1718,10 @@ figcaption {
 
 @media (max-width: 680px) {
   .summary-grid,
+  .example-meta-grid,
+  .example-two-col,
+  .example-plot-grid,
+  .help-visual-grid,
   .figure-grid,
   .runtime-grid,
   .parameter-list,

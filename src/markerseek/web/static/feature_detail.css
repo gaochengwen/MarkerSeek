@@ -2,12 +2,21 @@
   margin: 8px 0 0;
 }
 
+.feature-detail-page .form-section {
+  grid-template-columns: 1fr;
+}
+
 .plot-panel {
   width: 100%;
   min-width: 0;
   border: 1px solid rgba(220, 230, 241, 0.92);
   border-radius: var(--radius-sm);
   background: #ffffff;
+}
+
+.species-pca-panel {
+  width: min(100%, 640px);
+  margin-inline: auto;
 }
 
 .alignment-viewer {
@@ -18,7 +27,7 @@
   border-radius: var(--radius-sm);
   background: #fbfdff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 .alignment-ruler,
@@ -103,20 +112,48 @@
 }
 
 .feature-metadata {
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: 8px 24px;
-  padding: 14px;
-  overflow: visible;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
 }
 
-.feature-metadata dt,
-.feature-metadata dd {
-  padding: 0;
-  border-bottom: 0;
-  background: transparent;
-}
-
-.feature-metadata dd {
+.metadata-item {
   min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.55fr) minmax(0, 1fr);
+  border: 1px solid rgba(220, 230, 241, 0.92);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.metadata-item dt,
+.metadata-item dd {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.metadata-item dt {
+  color: #30485f;
+  font-weight: 800;
+  background: #f8fbff;
+}
+
+.metadata-item dd {
+  color: #18324a;
+  font-weight: 650;
+}
+
+@media (max-width: 860px) {
+  .feature-metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .metadata-item {
+    grid-template-columns: 1fr;
+  }
 }

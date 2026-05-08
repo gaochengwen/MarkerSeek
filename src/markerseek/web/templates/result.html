@@ -83,7 +83,7 @@
   </section>
   {% endif %}
 
-  <section class="form-section">
+  <section class="form-section wide-section">
     <div class="section-heading">
       <h2>Parameters</h2>
     </div>
@@ -98,7 +98,7 @@
   </section>
 
   {% if job.status == "succeeded" %}
-  <section class="form-section">
+  <section class="form-section wide-section result-figures-section">
     <div class="section-heading">
       <h2>Figures</h2>
       <p>PNG previews are shown below; publication files are available in the downloads.</p>
@@ -120,13 +120,11 @@
   </section>
 
   {% if feature_rows %}
-  <section class="form-section">
+  <section class="form-section wide-section candidate-marker-section">
     <div class="section-heading">
       <h2>Candidate markers</h2>
     </div>
-    {% if show_replicate_hint %}
-    <p class="diagnostic-hint">Some within-species diagnostics are unavailable because the dataset does not include at least two samples per species.</p>
-    {% endif %}
+    <div class="section-content">
     <div class="table-wrap">
       <table class="hotspot-table">
         <thead>
@@ -147,9 +145,9 @@
             <td>{{ row.label_name }}</td>
             <td>{{ row.region }}</td>
             <td>{{ row.length_bp }}</td>
-            <td>{{ row.pi|fmt2 }}</td>
+            <td>{{ row.pi|fmt4 }}</td>
             <td>{{ row.alignment_reliability|fmt2 }}</td>
-            <td>{{ row.markerseek_score|fmt2 }}</td>
+            <td>{{ row.markerseek_score|fmt1 }}</td>
             <td>{{ row.primer_available }}</td>
             <td>
               <a class="button-link table-action" href="/analyzer/results/{{ job.job_id }}/feature/{{ row.feature_id|urlencode }}">View details</a>
@@ -157,18 +155,24 @@
           </tr>
           {% endfor %}
         </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="8">{{ candidate_marker_explanation }} {{ primer_available_explanation }}</td>
+          </tr>
+        </tfoot>
       </table>
+    </div>
     </div>
   </section>
   {% endif %}
 
-  <section class="form-section">
+  <section class="form-section wide-section">
     <div class="section-heading">
       <h2>Downloads</h2>
     </div>
     <div class="download-list">
       <a class="button-link" href="/analyzer/results/{{ job.job_id }}/download/all">Download all results</a>
-      {% for name in available_files %}
+      {% for name in download_files %}
       {% if name != "results.zip" %}
       <a href="/analyzer/results/{{ job.job_id }}/download/{{ name }}">{{ name }}</a>
       {% endif %}

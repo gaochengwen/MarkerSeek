@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import csv
 import json
-import subprocess
-import sys
-import tempfile
 from collections import Counter
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -26,8 +23,6 @@ RESULT_FILENAMES = (
     "similarity_plot.pdf",
     "similarity_plot.png",
     "primers.tsv",
-    "primer_amplicons.fasta",
-    "primer_amplicons_alignment.fasta",
     "primer_summary.png",
 )
 
@@ -76,12 +71,8 @@ PRIMER_COLUMNS = [
     "primer3_penalty",
     "target_start",
     "target_end",
-    "amplicon_min_len",
-    "amplicon_max_len",
-    "amplicon_mean_len",
+    "amplicon_len",
     "cross_species_success_rate",
-    "amplicon_variable_sites",
-    "amplicon_indel_sites",
     "primer_score",
 ]
 
@@ -216,12 +207,8 @@ def write_primers_tsv(path: Path, primers) -> None:
                     f"{row.primer3_penalty:.6f}",
                     row.target_start,
                     row.target_end,
-                    row.amplicon_min_len,
-                    row.amplicon_max_len,
-                    f"{row.amplicon_mean_len:.1f}",
+                    int(round(row.amplicon_mean_len)),
                     f"{row.cross_species_success_rate:.6f}",
-                    row.amplicon_variable_sites,
-                    row.amplicon_indel_sites,
                     f"{row.primer_score:.1f}",
                 ]
             )
@@ -271,41 +258,6 @@ def write_feature_payloads(outdir: str | Path, result: AnalysisResult) -> None:
         write_json(payload_dir / f"{feature_id_safe(feature.feature_id)}.json", payload)
 
 
-def write_primer_amplicons_fasta(path: Path, primers, primer_amplicons: dict[str, dict[str, str]]) -> None:
-    with path.open("w", encoding="utf-8") as handle:
-        for primer in primers:
-            for sample_name, sequence in primer_amplicons.get(primer.primer_id, {}).items():
-                handle.write(f">{primer.primer_id}|{sample_name}\n")
-                handle.write(_wrap_fasta(sequence))
-                handle.write("\n")
-
-
-def align_primer_amplicons(primers, primer_amplicons: dict[str, dict[str, str]], mafft_bin: str) -> str:
-    blocks: list[str] = []
-    for primer in primers:
-        amplicons = primer_amplicons.get(primer.primer_id, {})
-        if len(amplicons) < 2:
-            continue
-        with tempfile.TemporaryDirectory(prefix="markerseek_primer_align_") as tmpdir:
-            fasta_path = Path(tmpdir) / "amplicons.fasta"
-            with fasta_path.open("w", encoding="utf-8") as handle:
-                for sample_name, sequence in amplicons.items():
-                    handle.write(f">{sample_name}\n")
-                    handle.write(_wrap_fasta(sequence))
-                    handle.write("\n")
-
-            mafft_path = Path(mafft_bin)
-            if mafft_path.exists() and mafft_path.suffix == ".py":
-                command = [sys.executable, str(mafft_path), "--auto", str(fasta_path)]
-            else:
-                command = [mafft_bin, "--auto", str(fasta_path)]
-            completed = subprocess.run(command, check=True, capture_output=True, text=True)
-        block = completed.stdout.strip()
-        if block:
-            blocks.append(f"# primer_id={primer.primer_id}\n{block}\n")
-    return "\n".join(blocks)
-
-
 def write_analysis_outputs(
     result: AnalysisResult,
     outdir: str | Path,
@@ -347,21 +299,12 @@ def write_analysis_outputs(
         )
     if primer_design:
         write_primers_tsv(output_dir / "primers.tsv", result.primers)
-        write_primer_amplicons_fasta(output_dir / "primer_amplicons.fasta", result.primers, result.primer_amplicons)
-        (output_dir / "primer_amplicons_alignment.fasta").write_text(
-            align_primer_amplicons(result.primers, result.primer_amplicons, mafft_bin),
-            encoding="utf-8",
-        )
         plot_primer_summary(result, output_dir)
     write_feature_payloads(output_dir, result)
 
 
 def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
-
-
-def _wrap_fasta(sequence: str, width: int = 80) -> str:
-    return "\n".join(sequence[index : index + width] for index in range(0, len(sequence), width))
 
 
 def feature_id_safe(feature_id: str) -> str:
@@ -444,11 +387,15 @@ def _primer_payload(primer: PrimerResult) -> dict:
         "amplicon_min_len": primer.amplicon_min_len,
         "amplicon_max_len": primer.amplicon_max_len,
         "amplicon_mean_len": primer.amplicon_mean_len,
+        "amplicon_len": int(round(primer.amplicon_mean_len)),
         "cross_species_success_rate": primer.cross_species_success_rate,
         "amplicon_variable_sites": primer.amplicon_variable_sites,
         "amplicon_indel_sites": primer.amplicon_indel_sites,
         "primer_score": primer.primer_score,
     }
+
+
+RESULTS_ZIP_EXCLUDED_SUFFIXES = (".png",)
 
 
 def create_results_zip(outdir: str | Path, archive_path: str | Path) -> Path:
@@ -457,6 +404,8 @@ def create_results_zip(outdir: str | Path, archive_path: str | Path) -> Path:
     archive.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(archive, "w", compression=ZIP_DEFLATED) as handle:
         for name in RESULT_FILENAMES:
+            if name.endswith(RESULTS_ZIP_EXCLUDED_SUFFIXES):
+                continue
             path = output_dir / name
             if path.exists() and path.is_file():
                 handle.write(path, arcname=name)

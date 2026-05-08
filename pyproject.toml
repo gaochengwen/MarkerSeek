@@ -33,6 +33,7 @@ dev = [
 [project.scripts]
 markerseek = "markerseek.cli:main"
 markerseek-web = "markerseek.web.app:main"
+markerseek-db = "markerseek.database:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Browse Database - MarkerSeek{% endblock %}
+{% block content %}
+<section class="result-page database-browse">
+  <div class="status-header">
+    <span class="status-badge succeeded">{{ total }} {% if total == 1 %}genus{% else %}genera{% endif %}</span>
+    <h1>Browse genera</h1>
+    {% if q or family or order %}
+    <p class="job-id">
+      Filter:
+      {% if q %}prefix &ldquo;{{ q }}&rdquo;{% endif %}
+      {% if family %}{% if q %}, {% endif %}family {{ family }}{% endif %}
+      {% if order %}{% if q or family %}, {% endif %}order {{ order }}{% endif %}
+      &middot; <a href="/database/browse">clear</a>
+    </p>
+    {% endif %}
+  </div>
+
+  <section class="form-section wide-section">
+    <div class="section-heading">
+      <h2>Filter</h2>
+    </div>
+    <form action="/database/browse" method="get" class="database-search-form">
+      <input type="search" name="q" value="{{ q }}" placeholder="Genus prefix (e.g. Astr)" autocomplete="off">
+      <button type="submit" class="button-link">Apply</button>
+    </form>
+  </section>
+
+  <section class="form-section wide-section">
+    <div class="section-heading">
+      <h2>Results</h2>
+    </div>
+    {% if rows %}
+    <div class="section-content">
+      <div class="table-wrap">
+        <table class="hotspot-table">
+          <thead>
+            <tr>
+              <th>Genus</th>
+              <th>Family</th>
+              <th>Order</th>
+              <th>Species</th>
+              <th>Genome length</th>
+              <th>Top marker</th>
+              <th>Markers</th>
+              <th>Primers</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              <td><strong>{{ row.genus }}</strong></td>
+              <td>{{ row.family or "—" }}</td>
+              <td>{{ row.taxonomic_order or "—" }}</td>
+              <td>{{ row.species_count }}</td>
+              <td>
+                {% if row.genome_length_min and row.genome_length_max %}
+                {{ "%.0f"|format(row.genome_length_min / 1000) }}–{{ "%.0f"|format(row.genome_length_max / 1000) }} kb
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if row.top_marker_label %}
+                {{ row.top_marker_label }} <span class="muted">({{ "%.1f"|format(row.top_marker_score) }})</span>
+                {% else %}—{% endif %}
+              </td>
+              <td>{{ row.marker_count or "—" }}</td>
+              <td>{{ row.primer_count or "—" }}</td>
+              <td><a class="button-link table-action" href="/database/genus/{{ row.genus }}">View</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <p class="empty-state">No genera matched the current filter.</p>
+    {% endif %}
+  </section>
+
+  {% if total_pages > 1 %}
+  <section class="form-section wide-section">
+    <div class="pagination">
+      {% set base_args = "q=" ~ q ~ "&family=" ~ family ~ "&order=" ~ order %}
+      {% if page > 1 %}
+      <a class="button-link" href="/database/browse?{{ base_args }}&page={{ page - 1 }}">Previous</a>
+      {% endif %}
+      <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+      {% if page < total_pages %}
+      <a class="button-link" href="/database/browse?{{ base_args }}&page={{ page + 1 }}">Next</a>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+</section>
+
+<style>
+.database-search-form { display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center; }
+.database-search-form input[type=search] { flex:1 1 240px; padding:0.5rem 0.7rem; font-size:1rem; border:1px solid #c4c8d1; border-radius:4px; }
+.database-search-form select { padding:0.5rem 0.6rem; font-size:0.95rem; border:1px solid #c4c8d1; border-radius:4px; background:#fff; }
+.muted { color:#6b7080; font-size:0.85rem; }
+.pagination { display:flex; gap:0.8rem; align-items:center; justify-content:center; }
+.page-info { color:#3a4156; font-size:0.95rem; }
+</style>
+{% endblock %}

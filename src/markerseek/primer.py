@@ -146,7 +146,37 @@ def design_primers_for_region(
         return []
     template_start = max(0, left_flank.start)
     template_end = min(len(reference_seq), right_flank.end)
-    if template_end <= template_start:
+    return design_primers_for_template(
+        reference_seq,
+        template_start,
+        template_end,
+        target_start,
+        target_end,
+        max_pairs=max_pairs,
+        primer_settings=primer_settings,
+    )
+
+
+def design_primers_for_template(
+    reference_seq: str,
+    template_start: int,
+    template_end: int,
+    target_start: int,
+    target_end: int,
+    *,
+    max_pairs: int = 5,
+    primer_settings: dict | None = None,
+) -> list[PrimerPair]:
+    """Design primer pairs in a broader template that must include a target core."""
+
+    template_start = max(0, min(template_start, len(reference_seq)))
+    template_end = max(0, min(template_end, len(reference_seq)))
+    if (
+        template_end <= template_start
+        or target_end <= target_start
+        or target_start < template_start
+        or target_end > template_end
+    ):
         return []
 
     seq_args = {
@@ -216,6 +246,49 @@ def fuzzy_search(
     """Return forward-strand matches allowing body mismatches outside the 3' anchor."""
 
     return _fuzzy_search(primer_seq, target_seq, max_mismatch=max_mismatch, anchor_3prime=anchor_3prime)
+
+
+def primer_binds_in_sample(
+    forward: str,
+    reverse: str,
+    sample_seq: str,
+    *,
+    min_amplicon: int = 80,
+    max_amplicon: int = 3000,
+    max_mismatch: int = 1,
+    anchor_3prime: int = 5,
+) -> tuple[int, int, int] | None:
+    """Lightweight universality check that also returns the amplicon coords.
+
+    Returns ``(fwd_pos, rev_pos, length)`` for the first valid plus-strand
+    amplicon (positions are 0-based offsets in the gap-stripped ``sample_seq``)
+    or ``None`` if no valid pair exists. Short-circuits on the first hit so it
+    stays cheap for non-reference samples.
+    """
+
+    sequence = sample_seq.upper().replace("-", "").replace(".", "")
+    reverse_plus = reverse_complement(reverse)
+    reverse_len = len(reverse_plus)
+    fwd_hits = _fuzzy_search(
+        forward, sequence,
+        max_mismatch=max_mismatch, anchor_3prime=anchor_3prime,
+    )
+    if not fwd_hits:
+        return None
+    rev_hits = _fuzzy_search(
+        reverse_plus, sequence,
+        max_mismatch=max_mismatch, anchor_3prime=anchor_3prime, anchor_side="left",
+    )
+    if not rev_hits:
+        return None
+    for fwd_pos, _ in fwd_hits:
+        for rev_pos, _ in rev_hits:
+            if rev_pos <= fwd_pos:
+                continue
+            length = rev_pos + reverse_len - fwd_pos
+            if min_amplicon <= length <= max_amplicon:
+                return fwd_pos, rev_pos, length
+    return None
 
 
 def in_silico_pcr(

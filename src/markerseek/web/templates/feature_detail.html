@@ -1,22 +1,22 @@
 {% extends "base.html" %}
 {% block title %}{{ feature.label_name }} - MarkerSeek{% endblock %}
 {% block head_extra %}
-<base href="/analyzer/results/{{ job.job_id }}/feature/{{ feature.feature_id|urlencode }}/">
-<link rel="stylesheet" href="{{ url_for('static', path='feature_detail.css') }}?v=phaseD">
+<base href="{{ feature_base_url }}">
+<link rel="stylesheet" href="{{ url_for('static', path='feature_detail.css') }}?v=detail20260505b">
 {% endblock %}
 {% block content %}
-<section class="result-page feature-detail-page">
+<section class="result-page feature-detail-page" data-feature-data-url="./data.json" data-pi-target="pi-curve" data-haplotype-target="haplotype-net" data-pca-target="species-pca">
   <div class="status-header">
     <span class="status-badge succeeded">Hotspot</span>
     <h1>{{ feature.label_name }}</h1>
     <p class="job-id">{{ feature.region }} · {{ feature.start }}-{{ feature.end }} · {{ feature.length_bp }} bp</p>
-    <p><a href="/analyzer/results/{{ job.job_id }}">Back to results</a></p>
+    <p><a href="{{ back_url }}">{{ back_label or "Back to results" }}</a></p>
   </div>
 
   <section class="summary-grid">
     <div>
       <span>Pi</span>
-      <strong>{{ feature.pi|fmt2 }}</strong>
+      <strong>{{ feature.pi|sig3 }}</strong>
     </div>
     <div>
       <span>MarkerSeek score</span>
@@ -36,16 +36,12 @@
     <div class="section-heading">
       <h2>Feature Metadata</h2>
     </div>
-    <dl class="detail-list feature-metadata">
-      {% for key, value in feature.items() %}
-      <dt>{{ key }}</dt>
-      <dd>
-        {% if key in ["intraspecific_divergence", "nearest_neighbor_discrimination", "barcoding_gap", "misclassification_risk"] and value|is_na %}
-        <span class="insufficient-replicates" title="Requires ≥ 2 samples per species">Insufficient replicates</span>
-        {% else %}
-        {{ value|fmt2 }}
-        {% endif %}
-      </dd>
+    <dl class="feature-metadata">
+      {% for key, value in feature_metadata_rows %}
+      <div class="metadata-item">
+        <dt>{{ key }}</dt>
+        <dd>{{ value }}</dd>
+      </div>
       {% endfor %}
     </dl>
   </section>
@@ -75,7 +71,7 @@
     <div class="section-heading">
       <h2>Species Separation</h2>
     </div>
-    <div id="species-pca" class="plot-panel" style="height:350px"></div>
+    <div id="species-pca" class="plot-panel species-pca-panel" style="height:560px"></div>
   </section>
 
   <section class="form-section">
@@ -94,7 +90,7 @@
             <th>rev_gc</th>
             <th>fwd_tm</th>
             <th>rev_tm</th>
-            <th>primer3_penalty</th>
+            <th>amplicon_size</th>
             <th>cross_species_success_rate</th>
             <th>primer_score</th>
           </tr>
@@ -109,7 +105,13 @@
             <td>{{ primer.rev_gc }}</td>
             <td>{{ primer.fwd_tm }}</td>
             <td>{{ primer.rev_tm }}</td>
-            <td>{{ primer.primer3_penalty }}</td>
+            <td>
+              {% if primer.amplicon_min_len == primer.amplicon_max_len %}
+              {{ primer.amplicon_min_len }} bp
+              {% else %}
+              {{ primer.amplicon_min_len }}-{{ primer.amplicon_max_len }} bp
+              {% endif %}
+            </td>
             <td>{{ primer.cross_species_success_rate }}</td>
             <td>{{ primer.primer_score }}</td>
           </tr>
@@ -122,17 +124,19 @@
     {% endif %}
   </section>
 
+  {% if show_downloads %}
   <section class="form-section">
     <div class="section-heading">
       <h2>Downloads</h2>
     </div>
     <div class="download-list">
-      <a class="button-link" href="/analyzer/results/{{ job.job_id }}/feature/{{ feature.feature_id|urlencode }}/download/fasta">Download FASTA</a>
-      <a class="button-link" href="/analyzer/results/{{ job.job_id }}/feature/{{ feature.feature_id|urlencode }}/download/csv">Download CSV</a>
+      <a class="button-link" href="{{ download_fasta_url }}">Download FASTA</a>
+      <a class="button-link" href="{{ download_csv_url }}">Download CSV</a>
     </div>
   </section>
+  {% endif %}
 
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-  <script src="{{ url_for('static', path='feature_detail.js') }}"></script>
+  <script src="{{ url_for('static', path='feature_detail.js') }}?v=detail20260505b"></script>
 </section>
 {% endblock %}

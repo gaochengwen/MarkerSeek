@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {% if refresh %}<meta http-equiv="refresh" content="30">{% endif %}
+  {% if refresh %}<meta http-equiv="refresh" content="60">{% endif %}
   {% block head_extra %}{% endblock %}
   <title>{% block title %}MarkerSeek Analyzer{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=radius20">
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=layout20260508a">
 </head>
 <body>
   <header class="site-header">
@@ -17,6 +17,7 @@
       <nav class="nav-links" aria-label="Primary">
         <a href="/markerseek">Analyze</a>
         <a href="/analyzer/view">View Results</a>
+        <a href="/database">Database</a>
         <a href="/analyzer/example">Example</a>
         <a href="/analyzer/help">Help</a>
       </nav>

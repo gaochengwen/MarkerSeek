@@ -109,6 +109,7 @@ class FeatureResult:
     barcoding_gap: float | None = None
     misclassification_risk: float | None = None
     alignment_reliability: float | None = None
+    missing_ambig_ratio: float | None = None
     markerseek_score: float | None = None
     haplotypes: list[str] = field(default_factory=list)
 
@@ -174,4 +175,4 @@ class AnalysisResult:
     sample_metadata: list[SampleMetadata] = field(default_factory=list)
     score_weights: dict[str, float] = field(default_factory=dict)
     primers: list[PrimerResult] = field(default_factory=list)
-    primer_amplicons: dict[str, dict[str, str]] = field(default_factory=dict)
+    primer_amplicon_samples: dict[str, set[str]] = field(default_factory=dict)

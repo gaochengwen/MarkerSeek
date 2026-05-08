@@ -20,6 +20,9 @@ def test_feature_detail_route_renders_plotly_skeleton(tmp_path: Path, monkeypatc
     assert "cdn.plot.ly" in response.text
     assert 'id="pi-curve"' in response.text
     assert 'id="haplotype-net"' in response.text
+    assert "amplicon_size" in response.text
+    assert "100-102 bp" in response.text
+    assert "primer3_penalty" not in response.text
 
 
 def test_feature_data_json_endpoint_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

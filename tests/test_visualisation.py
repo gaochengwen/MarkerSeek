@@ -46,16 +46,16 @@ def test_species_pca_separates_two_clusters() -> None:
     assert 0.0 <= pca["explained_variance"][0] <= 1.0
 
 
-def test_render_alignment_svg_wraps_at_60_columns() -> None:
-    sequence = ("A" * 60) + ("C" * 60) + ("GTACGTACGT")
+def test_render_alignment_svg_wraps_at_100_columns() -> None:
+    sequence = ("A" * 100) + ("C" * 100) + ("GTACGTACGT")
     html = render_alignment_svg_block({"sample": sequence})
 
     rows = re.findall(r'<pre class="alignment-row" data-sequence="([^"]+)"', html)
 
     assert len(rows) == 3
-    assert rows[0] == "A" * 60
-    assert rows[1] == "C" * 60
+    assert rows[0] == "A" * 100
+    assert rows[1] == "C" * 100
     assert rows[2] == "GTACGTACGT"
     assert html.count('class="alignment-ruler"') == 3
-    assert "61" in html
+    assert "101" in html
     assert '<span class="b-A">A</span>' in html

@@ -106,7 +106,7 @@ def compute_species_pca(aligned_block: dict[str, str], species_map: dict[str, st
     }
 
 
-def render_alignment_svg_block(aligned_block: dict[str, str], *, columns_per_row: int = 60) -> str:
+def render_alignment_svg_block(aligned_block: dict[str, str], *, columns_per_row: int = 100) -> str:
     """Render a server-side HTML alignment viewer fragment."""
 
     if columns_per_row <= 0:

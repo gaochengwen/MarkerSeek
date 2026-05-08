@@ -9,15 +9,16 @@ function bySpecies(items, speciesGetter) {
   }, {});
 }
 
-const PLOT_MARGIN = {l: 50, r: 30, t: 30, b: 50};
+const PLOT_MARGIN = {l: 58, r: 26, t: 64, b: 56};
 const PLOT_FONT = {family: "Inter, system-ui, sans-serif", size: 12};
 const GRID_COLOR = "#e6e6e6";
 const LEGEND = {
-  x: 1,
-  y: 1,
-  xanchor: "right",
-  yanchor: "top",
-  bgcolor: "rgba(255,255,255,0.7)",
+  orientation: "h",
+  x: 0,
+  y: 1.16,
+  xanchor: "left",
+  yanchor: "bottom",
+  bgcolor: "rgba(255,255,255,0.82)",
   bordercolor: "#d1d5db",
   borderwidth: 1
 };
@@ -34,7 +35,10 @@ const SPECIES_PALETTE = [
   "#0f766e"
 ];
 
-function renderPiCurve(payload) {
+function renderPiCurve(payload, targetId) {
+  if (!document.getElementById(targetId)) {
+    return;
+  }
   const curve = payload.pi_curve || {positions: [], pi: []};
   const piByPosition = new Map(curve.positions.map((position, index) => [position, curve.pi[index] || 0]));
   const snpY = (payload.snp_positions || []).map((position) => piByPosition.get(position) || 0);
@@ -65,16 +69,20 @@ function renderPiCurve(payload) {
       marker: {color: "#2563eb", size: 8, symbol: "triangle-up"}
     }
   ];
-  Plotly.newPlot("pi-curve", traces, {
+  Plotly.newPlot(targetId, traces, {
     margin: PLOT_MARGIN,
     font: PLOT_FONT,
-    xaxis: {title: "Position", gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR},
-    yaxis: {title: "Pi", rangemode: "tozero", gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR},
-    legend: LEGEND
+    xaxis: {title: "Position", gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR, automargin: true},
+    yaxis: {title: "Pi", rangemode: "tozero", gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR, automargin: true},
+    legend: LEGEND,
+    hovermode: "closest"
   }, {responsive: true, displaylogo: false});
 }
 
-function renderHaplotypeNetwork(payload) {
+function renderHaplotypeNetwork(payload, targetId) {
+  if (!document.getElementById(targetId)) {
+    return;
+  }
   const network = payload.haplotype_network || {nodes: [], edges: []};
   const nodeById = new Map(network.nodes.map((node) => [node.id, node]));
   const shapes = (network.edges || []).map((edge) => {
@@ -98,9 +106,8 @@ function renderHaplotypeNetwork(payload) {
     y: nodes.map((node) => node.y),
     text: nodes.map((node) => `${node.id}<br>frequency: ${node.frequency}<br>${(node.species || []).join(", ")}`),
     type: "scatter",
-    mode: "markers+text",
+    mode: "markers",
     name: species,
-    textposition: "top center",
     hoverinfo: "text",
     marker: {
       size: nodes.map((node) => 12 + Math.sqrt(node.frequency) * 10),
@@ -108,17 +115,21 @@ function renderHaplotypeNetwork(payload) {
       line: {color: "#ffffff", width: 1}
     }
   }));
-  Plotly.newPlot("haplotype-net", traces, {
+  Plotly.newPlot(targetId, traces, {
     margin: PLOT_MARGIN,
     font: PLOT_FONT,
     shapes,
     xaxis: {visible: false, zeroline: false, gridcolor: GRID_COLOR, showgrid: true},
     yaxis: {visible: false, zeroline: false, gridcolor: GRID_COLOR, showgrid: true},
-    legend: LEGEND
+    legend: LEGEND,
+    hovermode: "closest"
   }, {responsive: true, displaylogo: false});
 }
 
-function renderSpeciesPca(payload) {
+function renderSpeciesPca(payload, targetId) {
+  if (!document.getElementById(targetId)) {
+    return;
+  }
   const pca = payload.species_pca || {samples: [], explained_variance: [0, 0]};
   const groups = bySpecies(pca.samples || [], (sample) => sample.species);
   const traces = Object.entries(groups).map(([species, samples], index) => ({
@@ -136,24 +147,40 @@ function renderSpeciesPca(payload) {
     }
   }));
   const variance = pca.explained_variance || [0, 0];
-  Plotly.newPlot("species-pca", traces, {
+  Plotly.newPlot(targetId, traces, {
     margin: PLOT_MARGIN,
     font: PLOT_FONT,
-    xaxis: {title: `PC1 (${((variance[0] || 0) * 100).toFixed(1)}%)`, gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR},
-    yaxis: {title: `PC2 (${((variance[1] || 0) * 100).toFixed(1)}%)`, gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR},
-    legend: LEGEND
+    xaxis: {title: `PC1 (${((variance[0] || 0) * 100).toFixed(1)}%)`, gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR, automargin: true},
+    yaxis: {title: `PC2 (${((variance[1] || 0) * 100).toFixed(1)}%)`, gridcolor: GRID_COLOR, showgrid: true, zerolinecolor: GRID_COLOR, automargin: true},
+    legend: LEGEND,
+    hovermode: "closest"
   }, {responsive: true, displaylogo: false});
 }
 
-fetch("./data.json")
-  .then((response) => {
-    if (!response.ok) {
-      throw new Error("Feature data could not be loaded.");
-    }
-    return response.json();
-  })
-  .then((payload) => {
-    renderPiCurve(payload);
-    renderHaplotypeNetwork(payload);
-    renderSpeciesPca(payload);
-  });
+function loadFeaturePlots(root) {
+  const dataUrl = root.dataset.featureDataUrl || "./data.json";
+  const targetIds = {
+    pi: root.dataset.piTarget || "pi-curve",
+    haplotype: root.dataset.haplotypeTarget || "haplotype-net",
+    pca: root.dataset.pcaTarget || "species-pca"
+  };
+  fetch(dataUrl)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error("Feature data could not be loaded.");
+      }
+      return response.json();
+    })
+    .then((payload) => {
+      renderPiCurve(payload, targetIds.pi);
+      renderHaplotypeNetwork(payload, targetIds.haplotype);
+      renderSpeciesPca(payload, targetIds.pca);
+    });
+}
+
+const plotRoots = document.querySelectorAll("[data-feature-data-url]");
+if (plotRoots.length) {
+  plotRoots.forEach(loadFeaturePlots);
+} else if (document.getElementById("pi-curve")) {
+  loadFeaturePlots(document.body);
+}

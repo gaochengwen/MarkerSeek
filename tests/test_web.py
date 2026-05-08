@@ -28,10 +28,9 @@ def test_default_similarity_values_match_web_defaults() -> None:
 
 def test_primer_design_form_field_round_trip() -> None:
     form = web_app.default_form_values()
-    form["primer_design"] = "on"
 
     enabled = web_app.parse_job_params(form)
-    form["primer_design"] = ""
+    form["skip_primer_design"] = "on"
     disabled = web_app.parse_job_params(form)
 
     assert enabled["primer_design"] is True
@@ -121,6 +120,90 @@ def test_download_candidate_marker_features_tsv_whitelisted(tmp_path: Path, monk
 
     assert marker_response.status_code == 200
     assert old_response.status_code == 404
+
+
+def test_candidate_marker_rows_keep_hotspots_then_score_candidates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = web_app.WebSettings()
+    settings.data_dir = tmp_path
+    monkeypatch.setattr(web_app, "settings", settings)
+
+    job_id = "MSK-202605010000002"
+    outdir = web_app.outputs_dir(job_id)
+    payload_dir = web_app.feature_payload_dir(job_id)
+    payload_dir.mkdir(parents=True)
+    (outdir / "candidate_marker_features.tsv").write_text(
+        "\n".join(
+            [
+                "feature_id\tlabel_name\tstart\tend\tpi\tmarkerseek_score",
+                "f1\tpi_rank_1\t10\t19\t0.900000\t10.000000",
+                "f2\tscore_rank_2\t20\t29\t0.100000\t90.000000",
+                "f3\tpi_rank_2\t5\t9\t0.800000\t50.000000",
+                "f4\tscore_rank_3\t40\t49\t0.200000\t80.000000",
+                "f5\thidden\t50\t59\t0.300000\t70.000000",
+                "f6\tscore_rank_1\t60\t69\t0.400000\t95.000000",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    for feature_id in ("f1", "f2", "f3", "f4", "f6"):
+        (payload_dir / f"{feature_id}.json").write_text("{}", encoding="utf-8")
+
+    rows = web_app.read_marker_feature_rows(job_id, {"hotspot_mode": "top-n", "hotspot_value": 2})
+
+    assert [row["feature_id"] for row in rows] == ["f3", "f1", "f6", "f2", "f4"]
+
+
+def test_candidate_marker_rows_use_pi_plot_labels_before_score_candidates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = web_app.WebSettings()
+    settings.data_dir = tmp_path
+    monkeypatch.setattr(web_app, "settings", settings)
+
+    job_id = "MSK-202605010000003"
+    outdir = web_app.outputs_dir(job_id)
+    payload_dir = web_app.feature_payload_dir(job_id)
+    payload_dir.mkdir(parents=True)
+    (outdir / "candidate_marker_features.tsv").write_text(
+        "\n".join(
+            [
+                "feature_id\tlabel_name\tstart\tend\tpi\tmarkerseek_score",
+                "f1\tycf1\t100\t159\t0.100000\t10.000000",
+                "f2\tscore_rank_2\t200\t259\t0.900000\t90.000000",
+                "f3\tndhF\t300\t359\t0.200000\t50.000000",
+                "f4\tscore_rank_3\t400\t459\t0.800000\t80.000000",
+                "f5\thidden\t500\t559\t0.700000\t70.000000",
+                "f6\tscore_rank_1\t600\t659\t0.600000\t95.000000",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (outdir / "pi_windows.tsv").write_text(
+        "\n".join(
+            [
+                "window_id\tstart\tend\tmidpoint\tpi\tvalid_sites\tregion\tlabel_name\tis_hotspot",
+                "W0001\t105\t154\t130\t0.040000\t50\tSSC\tycf1\tyes",
+                "W0002\t305\t354\t330\t0.050000\t50\tSSC\tndhF\tyes",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    for feature_id in ("f1", "f2", "f3", "f4", "f6"):
+        (payload_dir / f"{feature_id}.json").write_text("{}", encoding="utf-8")
+
+    rows = web_app.read_marker_feature_rows(
+        job_id,
+        {"hotspot_mode": "top-n", "hotspot_value": 2, "label_mode": "all"},
+    )
+
+    assert [row["feature_id"] for row in rows] == ["f1", "f3", "f6", "f2", "f4"]
 
 
 def test_example_page_renders() -> None:
