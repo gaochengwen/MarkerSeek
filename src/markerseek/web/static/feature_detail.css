@@ -1,0 +1,159 @@
+.feature-detail-page .status-header p {
+  margin: 8px 0 0;
+}
+
+.feature-detail-page .form-section {
+  grid-template-columns: 1fr;
+}
+
+.plot-panel {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(220, 230, 241, 0.92);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+}
+
+.species-pca-panel {
+  width: min(100%, 640px);
+  margin-inline: auto;
+}
+
+.alignment-viewer {
+  max-width: 100%;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid rgba(220, 230, 241, 0.92);
+  border-radius: var(--radius-sm);
+  background: #fbfdff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.alignment-ruler,
+.alignment-row {
+  margin: 0;
+  white-space: pre;
+  line-height: 1.2;
+  font-family: inherit;
+}
+
+.alignment-row span {
+  display: inline-block;
+  width: 1ch;
+  text-align: center;
+}
+
+.b-A {
+  color: #14532d;
+  background: #dcfce7;
+}
+
+.b-C {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.b-G {
+  color: #111827;
+  background: #e5e7eb;
+}
+
+.b-T {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.b-gap {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.b-N {
+  color: #c2410c;
+  background: #ffedd5;
+}
+
+.table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  font-size: 0.86rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 9px 10px;
+  border: 1px solid rgba(220, 230, 241, 0.92);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.data-table th {
+  color: #30485f;
+  background: #f8fbff;
+}
+
+.data-table .rank-one td {
+  background: #eefdf4;
+  font-weight: 750;
+}
+
+.empty-state {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.feature-metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.metadata-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.55fr) minmax(0, 1fr);
+  border: 1px solid rgba(220, 230, 241, 0.92);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.metadata-item dt,
+.metadata-item dd {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.metadata-item dt {
+  color: #30485f;
+  font-weight: 800;
+  background: #f8fbff;
+}
+
+.metadata-item dd {
+  color: #18324a;
+  font-weight: 650;
+}
+
+@media (max-width: 860px) {
+  .feature-metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .metadata-item {
+    grid-template-columns: 1fr;
+  }
+}

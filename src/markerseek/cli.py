@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import csv
-from pathlib import Path
 
 from .analysis import MarkerSeekError, run_analysis
-from .plotting import plot_pi_figure, plot_similarity_figure
+from .output import write_analysis_outputs
 
 
 def positive_int(raw_value: str) -> int:
@@ -27,6 +25,16 @@ def nonnegative_int(raw_value: str) -> int:
         raise argparse.ArgumentTypeError("Value must be an integer.") from exc
     if value < 0:
         raise argparse.ArgumentTypeError("Value must be a non-negative integer.")
+    return value
+
+
+def positive_float(raw_value: str) -> float:
+    try:
+        value = float(raw_value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Value must be a number.") from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError("Value must be greater than zero.")
     return value
 
 
@@ -54,6 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     analyze.add_argument("--mafft-bin", default="mafft", help="MAFFT executable or absolute path.")
     analyze.add_argument(
+        "--mafft-threads",
+        type=positive_int,
+        default=None,
+        help="Number of MAFFT worker threads. Defaults to MAFFT's own thread setting.",
+    )
+    analyze.add_argument(
         "--label-mode",
         choices=("peak-only", "all", "none"),
         default="peak-only",
@@ -74,13 +88,13 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--similarity-window",
         type=positive_int,
-        default=100,
+        default=200,
         help="Sliding window size in bp for the mVISTA-style similarity figure.",
     )
     analyze.add_argument(
         "--similarity-step",
         type=positive_int,
-        default=20,
+        default=60,
         help="Sliding step size in bp for the similarity figure.",
     )
     analyze.add_argument(
@@ -98,6 +112,19 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--irb", help="Manual region override in 1-based inclusive form start:end.")
     analyze.add_argument("--ssc", help="Manual region override in 1-based inclusive form start:end.")
     analyze.add_argument("--ira", help="Manual region override in 1-based inclusive form start:end.")
+
+    primer_group = analyze.add_argument_group("Primer design")
+    primer_group.add_argument("--primer-design", action="store_true", help="Design primers for hotspot regions.")
+    primer_group.add_argument("--primer-tm-min", type=positive_float, default=52.0, help="Minimum primer Tm.")
+    primer_group.add_argument("--primer-tm-max", type=positive_float, default=70.0, help="Maximum primer Tm.")
+    primer_group.add_argument("--primer-tm-opt", type=positive_float, default=58.0, help="Optimal primer Tm.")
+    primer_group.add_argument("--primer-len-min", type=positive_int, default=18, help="Minimum primer length.")
+    primer_group.add_argument("--primer-len-max", type=positive_int, default=27, help="Maximum primer length.")
+    primer_group.add_argument("--primer-len-opt", type=positive_int, default=20, help="Optimal primer length.")
+    primer_group.add_argument("--primer-amplicon-min", type=positive_int, default=80, help="Minimum amplicon length.")
+    primer_group.add_argument("--primer-amplicon-max", type=positive_int, default=3000, help="Maximum amplicon length.")
+    primer_group.add_argument("--primer-mismatch", type=nonnegative_int, default=1, help="Allowed primer mismatches.")
+    primer_group.add_argument("--primer-anchor-bp", type=positive_int, default=5, help="Exact 3-prime anchor length.")
 
     return parser
 
@@ -126,86 +153,31 @@ def manual_regions_from_args(args: argparse.Namespace) -> dict[str, tuple[int, i
     return {name: parse_manual_region(text) for name, text in region_text.items()}
 
 
-def write_windows_tsv(path: Path, windows) -> None:
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(
-            [
-                "window_id",
-                "start",
-                "end",
-                "midpoint",
-                "pi",
-                "valid_sites",
-                "region",
-                "label_name",
-                "is_hotspot",
-            ]
-        )
-        for row in windows:
-            writer.writerow(
-                [
-                    row.window_id,
-                    row.start,
-                    row.end,
-                    row.midpoint,
-                    format_float(row.pi),
-                    row.valid_sites,
-                    row.region,
-                    row.label_name,
-                    "yes" if row.is_hotspot else "no",
-                ]
-            )
-
-
-def write_features_tsv(path: Path, features) -> None:
-    parent_genes_with_parts = {
-        row.parent_gene
-        for row in features
-        if row.feature_id.startswith(f"{row.parent_gene}_part")
+def primer_settings_from_args(args: argparse.Namespace) -> dict:
+    if args.primer_tm_min > args.primer_tm_max:
+        raise MarkerSeekError("--primer-tm-min cannot exceed --primer-tm-max.")
+    if args.primer_len_min > args.primer_len_max:
+        raise MarkerSeekError("--primer-len-min cannot exceed --primer-len-max.")
+    if args.primer_amplicon_min > args.primer_amplicon_max:
+        raise MarkerSeekError("--primer-amplicon-min cannot exceed --primer-amplicon-max.")
+    return {
+        "PRIMER_MIN_TM": args.primer_tm_min,
+        "PRIMER_MAX_TM": args.primer_tm_max,
+        "PRIMER_OPT_TM": args.primer_tm_opt,
+        "PRIMER_MIN_SIZE": args.primer_len_min,
+        "PRIMER_MAX_SIZE": args.primer_len_max,
+        "PRIMER_OPT_SIZE": args.primer_len_opt,
+        "PRIMER_PRODUCT_SIZE_RANGE": [[args.primer_amplicon_min, args.primer_amplicon_max]],
     }
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(
-            [
-                "feature_id",
-                "feature_type",
-                "parent_gene",
-                "label_name",
-                "start",
-                "end",
-                "strand",
-                "length_bp",
-                "region",
-                "pi",
-            ]
-        )
-        for row in features:
-            if (
-                row.feature_id == row.parent_gene
-                and row.parent_gene in parent_genes_with_parts
-            ):
-                continue
-            writer.writerow(
-                [
-                    row.feature_id,
-                    row.feature_type,
-                    row.parent_gene,
-                    row.label_name,
-                    row.start,
-                    row.end,
-                    row.strand,
-                    row.length_bp,
-                    row.region,
-                    format_float(row.pi),
-                ]
-            )
 
 
-def format_float(value: float | None) -> str:
-    if value is None:
-        return "NA"
-    return f"{value:.6f}"
+def in_silico_settings_from_args(args: argparse.Namespace) -> dict:
+    return {
+        "min_amplicon": args.primer_amplicon_min,
+        "max_amplicon": args.primer_amplicon_max,
+        "max_mismatch": args.primer_mismatch,
+        "anchor_3prime": args.primer_anchor_bp,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -224,30 +196,31 @@ def main(argv: list[str] | None = None) -> int:
             hotspot_mode=args.hotspot_mode,
             hotspot_value=args.hotspot_value,
             mafft_bin=args.mafft_bin,
+            mafft_threads=args.mafft_threads,
             manual_regions=manual_regions_from_args(args),
+            label_mode=args.label_mode,
+            label_max=args.label_max,
+            label_min_distance_bp=args.label_min_distance,
+            primer_design=args.primer_design,
+            primer_settings=primer_settings_from_args(args),
+            in_silico_settings=in_silico_settings_from_args(args),
         )
     except MarkerSeekError as exc:
         parser.exit(2, f"Error: {exc}\n")
 
-    outdir = Path(args.outdir).resolve()
-    outdir.mkdir(parents=True, exist_ok=True)
-    write_windows_tsv(outdir / "pi_windows.tsv", result.windows)
-    write_features_tsv(outdir / "pi_features.tsv", result.features)
-    plot_pi_figure(
+    write_analysis_outputs(
         result,
-        outdir,
+        args.outdir,
         hotspot_mode=args.hotspot_mode,
         hotspot_value=args.hotspot_value,
         label_mode=args.label_mode,
         label_max=args.label_max,
         label_min_distance_bp=args.label_min_distance,
+        similarity_window=args.similarity_window,
+        similarity_step=args.similarity_step,
+        similarity_floor=args.similarity_floor,
+        include_similarity_plot=not args.no_similarity_plot,
+        primer_design=args.primer_design,
+        mafft_bin=args.mafft_bin,
     )
-    if not args.no_similarity_plot:
-        plot_similarity_figure(
-            result,
-            outdir,
-            similarity_window=args.similarity_window,
-            similarity_step=args.similarity_step,
-            similarity_floor=args.similarity_floor,
-        )
     return 0

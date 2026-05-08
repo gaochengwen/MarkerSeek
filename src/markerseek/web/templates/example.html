@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Example - MarkerSeek{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', path='feature_detail.css') }}?v=detail20260505b">
+{% endblock %}
+{% block content %}
+<section class="narrow-page example-page">
+  <div class="status-header example-hero">
+    <span class="status-badge succeeded">Permanent demo</span>
+    <h1>Example: Salvia plastome candidate markers</h1>
+    <p class="lead">This worked example uses the bundled <em>Salvia</em> GenBank files and displays the main MarkerSeek outputs directly on this page.</p>
+    <dl class="example-meta-grid">
+      <div><dt>Job ID</dt><dd>{{ demo_job_id }}</dd></div>
+      <div><dt>Samples</dt><dd>{{ manifest.sample_count if manifest else "18" }}</dd></div>
+      <div><dt>Reference</dt><dd><span class="file-token">Salvia_chinensis.gb</span></dd></div>
+      <div><dt>Input folder</dt><dd><span class="file-token">test_data/</span></dd></div>
+    </dl>
+  </div>
+
+  <section class="form-section wide-section example-section">
+    <div class="section-heading">
+      <h2>Demo dataset and analysis design</h2>
+      <p>The demonstration compares annotated plastomes from 18 <em>Salvia</em> samples. The reference file defines coordinates, feature names, and plastome regions; all candidate labels and detail pages are projected onto that reference coordinate system.</p>
+    </div>
+    <div class="example-two-col">
+      <div class="example-note">
+        <strong>Input set</strong>
+        <p>The demo uses GenBank files from <span class="file-token">test_data/</span>. The selected coordinate reference is <span class="file-token">Salvia_chinensis.gb</span>.</p>
+      </div>
+      <div class="example-note">
+        <strong>Output scope</strong>
+        <p>MarkerSeek writes sliding-window Pi results, candidate-marker features, haplotypes, summary figures, primer outputs, and interactive feature payloads for the selected candidates.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="form-section wide-section example-section">
+    <div class="section-heading">
+      <h2>Parameters used</h2>
+    </div>
+    <dl class="parameter-grid">
+      <div class="parameter-item"><dt>hotspot_window</dt><dd>600 bp</dd></div>
+      <div class="parameter-item"><dt>hotspot_step</dt><dd>200 bp</dd></div>
+      <div class="parameter-item"><dt>hotspot_mode</dt><dd>top-percent</dd></div>
+      <div class="parameter-item"><dt>hotspot_value</dt><dd>3.0</dd></div>
+      <div class="parameter-item"><dt>similarity_window</dt><dd>200 bp</dd></div>
+      <div class="parameter-item"><dt>similarity_step</dt><dd>60 bp</dd></div>
+      <div class="parameter-item"><dt>primer_design</dt><dd>true</dd></div>
+      <div class="parameter-item"><dt>mafft_threads</dt><dd>4</dd></div>
+    </dl>
+  </section>
+
+  {% if available_files %}
+  <section class="form-section wide-section example-section">
+    <div class="section-heading">
+      <h2>Genome-wide result overview</h2>
+      <p>The static figures summarize diversity and pairwise similarity across the aligned plastome. The downloadable PDF versions use the same data for publication-oriented export.</p>
+    </div>
+    <div class="figure-grid">
+      {% if "pi_plot.png" in available_files %}
+      <figure>
+        <img src="/analyzer/results/{{ demo_job_id }}/download/pi_plot.png" alt="Example nucleotide diversity plot">
+        <figcaption>Sliding-window nucleotide diversity with candidate hotspots.</figcaption>
+      </figure>
+      {% endif %}
+      {% if "similarity_plot.png" in available_files %}
+      <figure>
+        <img src="/analyzer/results/{{ demo_job_id }}/download/similarity_plot.png" alt="Example pairwise similarity plot">
+        <figcaption>Pairwise similarity tracks relative to the reference plastome.</figcaption>
+      </figure>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if feature_rows %}
+  <section class="form-section wide-section candidate-marker-section example-section">
+    <div class="section-heading">
+      <h2>Candidate markers</h2>
+      <p>These candidates include the hotspot labels from the Pi plot plus the highest-scoring remaining MarkerSeek regions.</p>
+    </div>
+    <div class="section-content">
+      <div class="table-wrap">
+        <table class="hotspot-table">
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Region</th>
+              <th>Length (bp)</th>
+              <th>Pi</th>
+              <th>Alignment reliability</th>
+              <th>MarkerSeek score</th>
+              <th>Primer available</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in feature_rows %}
+            <tr>
+              <td>{{ row.label_name }}</td>
+              <td>{{ row.region }}</td>
+              <td>{{ row.length_bp }}</td>
+              <td>{{ row.pi|fmt4 }}</td>
+              <td>{{ row.alignment_reliability|fmt2 }}</td>
+              <td>{{ row.markerseek_score|fmt1 }}</td>
+              <td>{{ row.primer_available }}</td>
+              <td>
+                {% if row.has_detail %}
+                <a class="button-link table-action" href="/analyzer/results/{{ demo_job_id }}/feature/{{ row.feature_id|urlencode }}">View details</a>
+                {% else %}
+                <span class="muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="8">{{ candidate_marker_explanation }} {{ primer_available_explanation }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if example_feature %}
+  <section class="form-section wide-section example-section feature-detail-page"
+    data-feature-data-url="/analyzer/results/{{ demo_job_id }}/feature/{{ example_feature.feature_id|urlencode }}/data.json"
+    data-pi-target="example-pi-curve"
+    data-haplotype-target="example-haplotype-net"
+    data-pca-target="example-species-pca">
+    <div class="section-heading">
+      <h2>Feature detail example: {{ example_feature.label_name }}</h2>
+      <p>The selected marker preview combines summary metadata, the local Pi curve, haplotype network, species separation, and aligned bases.</p>
+    </div>
+
+    <dl class="feature-metadata">
+      {% for key, value in example_metadata_rows %}
+      <div class="metadata-item">
+        <dt>{{ key }}</dt>
+        <dd>{{ value }}</dd>
+      </div>
+      {% endfor %}
+    </dl>
+
+    <div class="example-plot-grid">
+      <div>
+        <h3>Pi Curve</h3>
+        <div id="example-pi-curve" class="plot-panel" style="height:320px"></div>
+      </div>
+      <div>
+        <h3>Haplotype Network</h3>
+        <div id="example-haplotype-net" class="plot-panel" style="height:380px"></div>
+      </div>
+      <div>
+        <h3>Species Separation</h3>
+        <div id="example-species-pca" class="plot-panel species-pca-panel" style="height:560px"></div>
+      </div>
+    </div>
+
+    <div>
+      <h3>Alignment Viewer</h3>
+      {{ example_alignment_html|safe }}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if available_files %}
+  <section class="form-section wide-section example-section">
+    <div class="section-heading">
+      <h2>Downloadable output files</h2>
+      <p>The same files are available here for checking column names, figure exports, primer results, and reusable FASTA/TSV outputs.</p>
+    </div>
+    <div class="download-list">
+      <a class="button-link" href="/analyzer/results/{{ demo_job_id }}/download/all">Download all results</a>
+      {% for name in download_files %}
+      {% if name != "results.zip" %}
+      <a href="/analyzer/results/{{ demo_job_id }}/download/{{ name }}">{{ name }}</a>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if example_feature %}
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+  <script src="{{ url_for('static', path='feature_detail.js') }}?v=detail20260505b"></script>
+  {% endif %}
+</section>
+{% endblock %}

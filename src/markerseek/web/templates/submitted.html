@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Submitted - MarkerSeek{% endblock %}
+{% block head_extra %}
+<meta http-equiv="refresh" content="0; url=/analyzer/results/{{ job_id }}">
+{% endblock %}
+{% block content %}
+<section class="narrow-page">
+  <div class="status-header">
+    <span class="status-badge queued">Queued</span>
+    <h1>Redirecting to results</h1>
+    <p>Your MarkerSeek job has been queued. The result page will open automatically.</p>
+  </div>
+  <div class="id-panel">
+    <span>Job ID</span>
+    <strong>{{ job_id }}</strong>
+  </div>
+  <dl class="detail-list">
+    <dt>Project</dt>
+    <dd>{{ project_name }}</dd>
+    <dt>Retention</dt>
+    <dd>{{ retention_days }} days</dd>
+  </dl>
+  <div class="form-actions">
+    <a class="button-link" href="/analyzer/results/{{ job_id }}">Open result page now</a>
+    <a class="secondary-action" href="/markerseek">Submit another job</a>
+  </div>
+</section>
+<script>
+window.location.replace("/analyzer/results/{{ job_id }}");
+</script>
+{% endblock %}

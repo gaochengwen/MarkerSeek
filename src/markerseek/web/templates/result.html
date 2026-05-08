@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}{{ job.job_id }} - MarkerSeek{% endblock %}
+{% block content %}
+<section class="result-page">
+  <div class="status-header">
+    <span class="status-badge {{ job.status }}">{{ job.status|capitalize }}</span>
+    <h1>Job ID: {{ job.job_id }}</h1>
+    <p class="job-id">{{ job.project_name }}</p>
+  </div>
+
+  {% if job.status in ["queued", "running"] %}
+  <div class="alert alert-info">This page refreshes every 30 seconds while the job is {{ job.status }}.</div>
+  {% endif %}
+  {% if job.status == "failed" %}
+  <div class="alert alert-error">{{ job.error }}</div>
+  {% endif %}
+  {% if job.status == "expired" %}
+  <div class="alert alert-error">This job has expired and its files are no longer available.</div>
+  {% endif %}
+
+  <section class="summary-grid">
+    <div>
+      <span>Created</span>
+      <strong>{{ job.created_at }}</strong>
+    </div>
+    <div>
+      <span>Updated</span>
+      <strong>{{ job.updated_at }}</strong>
+    </div>
+    <div>
+      <span>Expires</span>
+      <strong>{{ "Never" if job.permanent else job.expires_at }}</strong>
+    </div>
+    <div>
+      <span>Reference</span>
+      <strong>{{ job.reference_file or "First sorted input" }}</strong>
+    </div>
+  </section>
+
+  {% if manifest %}
+  <section class="summary-grid">
+    <div>
+      <span>Samples</span>
+      <strong>{{ manifest.sample_count }}</strong>
+    </div>
+    <div>
+      <span>Genome length</span>
+      <strong>{{ manifest.genome_length }}</strong>
+    </div>
+    <div>
+      <span>Windows</span>
+      <strong>{{ manifest.window_count }}</strong>
+    </div>
+    <div>
+      <span>Hotspot windows</span>
+      <strong>{{ manifest.hotspot_window_count }}</strong>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if runtime_estimate %}
+  <section class="form-section runtime-section">
+    <div class="section-heading">
+      <h2>Estimated Runtime</h2>
+      <p>Based on current queue, server load, and uploaded data size.</p>
+    </div>
+    <div class="runtime-panel">
+      <div class="runtime-primary">
+        <span>{{ runtime_estimate.primary_label }}</span>
+        <strong>{{ runtime_estimate.primary_text }}</strong>
+      </div>
+      <div class="runtime-grid">
+        <div>
+          <span>Input data</span>
+          <strong>{{ runtime_estimate.data_text }}</strong>
+        </div>
+        <div>
+          <span>Queue</span>
+          <strong>{{ runtime_estimate.queue_text }}</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="form-section wide-section">
+    <div class="section-heading">
+      <h2>Parameters</h2>
+    </div>
+    <dl class="parameter-grid">
+      {% for key, value in display_params %}
+      <div class="parameter-item">
+        <dt>{{ key }}</dt>
+        <dd>{{ value }}</dd>
+      </div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  {% if job.status == "succeeded" %}
+  <section class="form-section wide-section result-figures-section">
+    <div class="section-heading">
+      <h2>Figures</h2>
+      <p>PNG previews are shown below; publication files are available in the downloads.</p>
+    </div>
+    <div class="figure-grid">
+      {% if "pi_plot.png" in available_files %}
+      <figure>
+        <img src="/analyzer/results/{{ job.job_id }}/download/pi_plot.png" alt="Nucleotide diversity plot">
+        <figcaption>Pi diversity plot</figcaption>
+      </figure>
+      {% endif %}
+      {% if "similarity_plot.png" in available_files %}
+      <figure>
+        <img src="/analyzer/results/{{ job.job_id }}/download/similarity_plot.png" alt="Similarity plot">
+        <figcaption>Similarity plot</figcaption>
+      </figure>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if feature_rows %}
+  <section class="form-section wide-section candidate-marker-section">
+    <div class="section-heading">
+      <h2>Candidate markers</h2>
+    </div>
+    <div class="section-content">
+    <div class="table-wrap">
+      <table class="hotspot-table">
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Region</th>
+            <th>Length (bp)</th>
+            <th>Pi</th>
+            <th>Alignment reliability</th>
+            <th>MarkerSeek score</th>
+            <th>Primer available</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in feature_rows %}
+          <tr>
+            <td>{{ row.label_name }}</td>
+            <td>{{ row.region }}</td>
+            <td>{{ row.length_bp }}</td>
+            <td>{{ row.pi|fmt4 }}</td>
+            <td>{{ row.alignment_reliability|fmt2 }}</td>
+            <td>{{ row.markerseek_score|fmt1 }}</td>
+            <td>{{ row.primer_available }}</td>
+            <td>
+              <a class="button-link table-action" href="/analyzer/results/{{ job.job_id }}/feature/{{ row.feature_id|urlencode }}">View details</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="8">{{ candidate_marker_explanation }} {{ primer_available_explanation }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="form-section wide-section">
+    <div class="section-heading">
+      <h2>Downloads</h2>
+    </div>
+    <div class="download-list">
+      <a class="button-link" href="/analyzer/results/{{ job.job_id }}/download/all">Download all results</a>
+      {% for name in download_files %}
+      {% if name != "results.zip" %}
+      <a href="/analyzer/results/{{ job.job_id }}/download/{{ name }}">{{ name }}</a>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

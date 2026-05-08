@@ -1,20 +1,22 @@
+# MarkerSeek
+
+MarkerSeek is a CLI and web application for discovering plastid-genome regions that are suitable as DNA-barcoding candidates. It aligns annotated GenBank plastomes, estimates nucleotide diversity (Pi), identifies high-polymorphism hotspot regions, scores candidate markers using diagnostic and primer-design evidence, and serves the results through tables, figures, and interactive hotspot-detail pages.
 <img src="MarkerSeek-logo.svg" width="400">
     MarkerSeek is a command-line toolkit for chloroplast nucleotide diversity analysis. It reads multiple annotated GenBank files, aligns the full plastomes with MAFFT, calculates site-wise and window-wise Pi values, summarises Pi for genes and intergenic spacers, labels high-polymorphism regions, and exports publication-style figures tuned for Nature-size layouts. In addition to the command-line implementation, MarkerSeek is also provided as a web-based tool, available at http://www.bioseqhub.cn/markerseek.
 
-## Features
+A multi-genus catalogue (`/database`) collects pre-computed analysis drops across thousands of genera, with browse, search, taxonomy filters, and per-genus detail pages reusing the analyzer's hotspot views.
 
-- Multiple GenBank inputs or whole directories as the primary workflow
-- Automatic MAFFT alignment with reference-coordinate projection
-- Sliding-window Pi table with configurable window and step size
-- Gene and intergenic-spacer Pi summary table from the reference annotation
-- Automatic LSC, SSC, IRb, and IRa inference with optional manual overrides
-- Hotspot labelling by top percentage, top N, or explicit Pi threshold
-- mVISTA-style pairwise similarity figure across all non-reference samples
-- Figure export as both `PDF` and `PNG` with a 183 mm-wide layout and Arial text
+## Biological Background
+
+Plastid genomes are widely used in plant systematics because they are usually compact, collinearly annotated, and recoverable from genome skimming data. Classical plant DNA barcoding depends on finding loci that are variable enough to separate closely related species while being flanked by conserved sequence suitable for robust PCR amplification. MarkerSeek targets that problem at whole-plastome scale.
+
+The nucleotide diversity index Pi is the mean pairwise nucleotide difference per valid aligned site [5]. In plastid surveys, peaks in Pi mark mutational hotspots such as intergenic spacers or rapidly evolving coding intervals. A high Pi value alone is not sufficient: candidate loci should also have reliable alignment, conserved flanks, species-level resolution, low estimated misclassification risk, and a working primer pair. MarkerSeek therefore combines Pi, feature-level diagnostics, and in-silico primer evidence into a single ranked candidate-marker table.
+
+When a dataset has no within-species replicate samples, MarkerSeek reports replicate-dependent diagnostics as `NA` rather than substituting a default value. This affects `intraspecific_divergence`, `nearest_neighbor_discrimination`, `barcoding_gap`, and `misclassification_risk`. The score formula automatically redistributes the affected weights — see "MarkerSeek Score" below.
 
 ## Installation
 
-Clone the repository and install into a virtual environment:
+MarkerSeek requires Python 3.11, 3.12, or 3.13 and a working MAFFT executable [4]. MAFFT must be available on `PATH`, or supplied through `--mafft-bin`.
 
 ```bash
 git clone https://github.com/gaochengwen/MarkerSeek.git
@@ -25,56 +27,35 @@ python -m pip install -U pip
 python -m pip install .
 ```
 
-Or install directly from GitHub without cloning:
+For development and tests:
 
 ```bash
-python -m pip install git+https://github.com/gaochengwen/MarkerSeek.git
+python -m pip install -e ".[dev]"
+pytest -q
 ```
 
-MarkerSeek expects `mafft` to be available in `PATH`, or you can pass `--mafft-bin /path/to/mafft`. Supported Python versions: 3.11, 3.12, and 3.13.
+Common ways to install MAFFT: `conda install -c bioconda mafft`, an HPC environment module (`module load mafft`), or an OS package supplied by the server administrator. Primer design uses `primer3-py`, which is pulled in as a Python dependency.
 
-On HPC clusters that use environment modules, you can typically make MAFFT available with something like:
+## CLI Usage
 
-```bash
-module load mafft-7.490
-```
-
-## Quick Start
-
-Run MarkerSeek on every GenBank file in `test_data/`, using `Salvia_chinensis.gb` as the coordinate reference:
+Run the bundled Salvia example data with an explicit reference:
 
 ```bash
 markerseek analyze test_data \
   --reference test_data/Salvia_chinensis.gb \
-  --outdir output \
-  --window 600 \
-  --step 200
+  --outdir output
 ```
 
-Without `--reference`, the **first input file (sorted alphabetically)** is used as the reference. The reference defines:
-
-- the coordinate system reported in the TSVs and figures
-- the gene/IGS annotation that drives feature naming and hotspot labels
-- the LSC / IRb / SSC / IRa inference
-
-After the run completes, you should see:
-
-- `output/pi_plot.pdf` and `output/pi_plot.png` — the Pi diversity figure with hotspot labels
-- `output/similarity_plot.pdf` and `output/similarity_plot.png` — mVISTA-style identity figure
-- `output/pi_windows.tsv` — sliding-window Pi values
-- `output/pi_features.tsv` — per-feature (gene / tRNA / rRNA / IGS) Pi values
-
-Example with explicit Pi threshold and tighter peak labelling:
+Run candidate-marker discovery with primer design:
 
 ```bash
 markerseek analyze test_data \
   --reference test_data/Salvia_chinensis.gb \
-  --outdir output_threshold \
-  --hotspot-mode threshold \
-  --hotspot-value 0.04 \
-  --label-mode peak-only \
+  --outdir output_primer \
+  --primer-design
 ```
 
+Without `--reference`, MarkerSeek uses the first sorted input file as the reference. The reference defines the coordinate system, annotation labels, gene and intergenic-spacer catalogue, and inferred LSC / IRb / SSC / IRa regions.
 ## Key Parameters
 
 - `--reference`: GenBank file used as the coordinate and annotation reference. Defaults to the first input.
@@ -91,7 +72,7 @@ markerseek analyze test_data \
 - `--no-similarity-plot`: skip generating `similarity_plot.{pdf,png}`.
 - `--mafft-bin`: MAFFT executable or absolute path. Default `mafft`.
 
-Manual region overrides use 1-based inclusive coordinates and require all four:
+Manual region boundaries can override the automatic inference:
 
 ```bash
 markerseek analyze input_dir \
@@ -102,49 +83,334 @@ markerseek analyze input_dir \
   --ira 128313:151458
 ```
 
-## Outputs
+## Web Usage
+
+Start the web server:
+
+```bash
+markerseek-web --host 0.0.0.0 --port 8000
+```
+
+Open `http://localhost:8000/markerseek`, upload between **2 and 20** GenBank files, choose a reference if needed, set parameters, and submit. The web app returns a job ID that can be pasted into the View Results page. While a job is queued or running the results page auto-refreshes every 60 seconds; finished pages do not refresh. Successful jobs render genome-wide figures, downloadable outputs, a Candidate markers table, and links to per-hotspot detail pages.
+
+The server stores jobs under `markerseek_jobs/` by default and records metadata in SQLite. The navigation also includes an Example page that links to the permanent demonstration job `MSK-EXAMPLE-DEMO` once it has been generated in the local job registry, and a Database page (next section).
+
+| Variable | Description |
+| --- | --- |
+| `MARKERSEEK_WEB_DATA` | Directory for uploads, job outputs, and `jobs.sqlite3`. |
+| `MARKERSEEK_RETENTION_DAYS` | Retention for ordinary jobs; default `7`. |
+| `MARKERSEEK_MAX_UPLOAD_BYTES` | Total upload limit per job; default `20971520`. |
+| `MARKERSEEK_MAFFT_BIN` | MAFFT executable or absolute path; default `mafft`. |
+
+## Database Module
+
+The web application also serves a multi-genus catalogue under `/database`. Each genus is a directory of pre-curated GenBank reference plastomes and, optionally, a sibling directory of pre-computed MarkerSeek outputs. Indexing is one-way — the web server only reads the catalogue and does not run analyses from this surface.
+
+### Directory layout
+
+```
+$MARKERSEEK_DB_ROOT/
+├── taxonomy.csv            # optional, headers: genus,family,order
+├── <Genus>_ref/            # one .gb / .gbk / .genbank per species
+│   ├── Astragalus_alpinus.gb
+│   └── …
+└── <Genus>_results/        # optional MarkerSeek output drop
+    ├── candidate_marker_features.tsv
+    ├── pi_windows.tsv
+    ├── primers.tsv
+    ├── pi_plot.png / pi_plot.pdf
+    ├── similarity_plot.png / similarity_plot.pdf
+    ├── primer_summary.png
+    ├── feature_payload/*.json
+    ├── haplotype_assignments.tsv
+    ├── sample_metadata.tsv
+    └── results.zip
+```
+
+A genus is included when at least one of `<Genus>_ref/` or `<Genus>_results/` is present. The species list and per-species genome-length / GC summary are derived from the `_ref/` GenBank files at request time, so the SQLite catalogue stays compact even at thousands of genera. The optional `taxonomy.csv` (NCBI-style `genus,family,order`) populates the Family / Order columns of the browse table; missing fields are stored as null.
+
+### Indexing
+
+```bash
+export MARKERSEEK_DB_ROOT=/home/ubuntu/plant_plastid
+markerseek-db reindex                      # full rescan
+markerseek-db reindex --genus Astragalus   # incremental (single genus)
+markerseek-db stats                        # catalogue counts
+```
+
+The catalogue is written to `$MARKERSEEK_DB_ROOT/markerseek_database.sqlite3` by default, or to `$MARKERSEEK_DATABASE_DB` if set. The schema includes a `primer_marker_count` column that records how many distinct candidate markers received a primer pair (used in the home-page totals).
+
+### Web routes
+
+| Route | Purpose |
+| --- | --- |
+| `GET /database` | Landing page — Genera indexed / Species / Markers with designed primers, plus alphabet index and search box. |
+| `GET /database/browse?q=&family=&order=&page=` | Paginated genus table with prefix and taxonomy filters. Family and Order columns are always shown. |
+| `GET /database/genus/{genus}` | Genus detail — genome-wide figures (Pi, similarity), candidate-marker table (hotspot labels in genomic order plus the top 10 remaining by score), top 30 primer pairs, downloads, and a Reference species table with per-row "View on NCBI" links. |
+| `GET /database/genus/{genus}/feature/{feature_id}` | Hotspot detail page (re-uses the analyzer feature view). |
+| `GET /database/genus/{genus}/download/{filename}` | Whitelisted result-file download. The `candidate_marker_features.tsv` download is filtered to drop replicate-dependent metric columns (`intraspecific_divergence`, `nearest_neighbor_discrimination`, `barcoding_gap`, `misclassification_risk`); the analyzer download is unchanged. PNG files are not exposed in download lists but remain inline-rendered as page figures. |
+| `GET /database/genus/{genus}/species/{filename}` | Single GenBank reference download (kept for direct deep-links; species rows in the UI link to NCBI Nucleotide via Accession instead). |
+| `GET /database/api/search?q=` | JSON prefix search for autocomplete. |
+
+### Environment variables
+
+| Variable | Description |
+| --- | --- |
+| `MARKERSEEK_DB_ROOT` | Directory holding `<Genus>_ref` / `<Genus>_results` subfolders. Default `/home/ubuntu/plant_plastid`. |
+| `MARKERSEEK_DATABASE_DB` | Override path of the catalogue SQLite file. Defaults to `<MARKERSEEK_DB_ROOT>/markerseek_database.sqlite3`. |
+
+## `markerseek analyze` Parameters
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `inputs` | required | One or more GenBank files or directories containing `.gb`, `.gbk`, or `.genbank` files. |
+| `--outdir` | `output` | Output directory for TSV, figure, ZIP, and JSON payload files. |
+| `--reference` | first sorted input | GenBank file used as coordinate and annotation reference. |
+| `--window` | `600` | Sliding-window size in base pairs for Pi estimation. |
+| `--step` | `200` | Sliding-window step size in base pairs. |
+| `--hotspot-mode` | `top-percent` | Hotspot selection mode: `top-percent`, `top-n`, or `threshold`. |
+| `--hotspot-value` | `3.0` | Top percentage, top count, or minimum Pi threshold, depending on `--hotspot-mode`. |
+| `--mafft-bin` | `mafft` | MAFFT executable name or path. |
+| `--mafft-threads` | MAFFT default | Number of MAFFT worker threads. |
+| `--label-mode` | `peak-only` | Pi-plot hotspot label mode: `peak-only`, `all`, or `none`. |
+| `--label-max` | unlimited | Maximum number of hotspot labels drawn on the Pi plot. |
+| `--label-min-distance` | `0` | Minimum midpoint spacing in base pairs between plotted hotspot labels. |
+| `--similarity-window` | `200` | Window size in base pairs for the similarity figure. |
+| `--similarity-step` | `60` | Step size in base pairs for the similarity figure. |
+| `--similarity-floor` | `0.5` | Lower y-axis bound for pairwise similarity tracks (fraction in 0–1). |
+| `--no-similarity-plot` | disabled | Skip `similarity_plot.{png,pdf}` generation. |
+| `--lsc`, `--irb`, `--ssc`, `--ira` | automatic | Manual 1-based inclusive plastome region boundaries. All four must be supplied together. |
+| `--primer-design` | disabled | Design primers for hotspot candidate markers and run in-silico PCR. |
+| `--primer-tm-min` | `52.0` | Minimum primer melting temperature. |
+| `--primer-tm-max` | `70.0` | Maximum primer melting temperature. |
+| `--primer-tm-opt` | `58.0` | Optimal primer melting temperature. |
+| `--primer-len-min` | `18` | Minimum primer length. |
+| `--primer-len-max` | `27` | Maximum primer length. |
+| `--primer-len-opt` | `20` | Optimal primer length. |
+| `--primer-amplicon-min` | `80` | Minimum allowed in-silico amplicon length. |
+| `--primer-amplicon-max` | `3000` | Maximum allowed in-silico amplicon length. |
+| `--primer-mismatch` | `1` | Allowed primer-template mismatches outside the exact 3' anchor. |
+| `--primer-anchor-bp` | `5` | Number of 3' bases that must match exactly. |
+
+## Candidate-Marker Selection
+
+`candidate_marker_features.tsv` records every projected feature (gene, tRNA, rRNA, intergenic spacer). The user-facing tables (web result page, example page, database genus page) and `feature_payload/*.json` are restricted to a curated subset:
+
+* every feature whose `label_name` matches a hotspot label rendered on the Pi plot, listed in **genomic order**, plus
+* the **top 10 remaining features by `markerseek_score`**.
+
+Primer design (`--primer-design`) only runs on this same set, so each feature in the table either has a primer pair or is annotated as `primer_available = no`.
+
+## Output Files
 
 ### `pi_windows.tsv`
-
-One row per sliding window across the reference genome.
 
 | Column | Description |
 | --- | --- |
 | `window_id` | Stable window identifier (`W0001`, `W0002`, …). |
-| `start` | 1-based inclusive start position on the reference. |
-| `end` | 1-based inclusive end position on the reference. |
-| `midpoint` | 1-based midpoint of the window, used as the x-coordinate in the figure. |
-| `pi` | Mean per-site nucleotide diversity (Nei & Li 1979) over the window's valid sites. |
-| `valid_sites` | Number of alignment columns inside the window where ≥2 samples carry canonical A/C/G/T (gaps and ambiguity codes are excluded). |
-| `region` | Plastome region containing the midpoint: `LSC`, `IRb`, `SSC`, or `IRa`. |
-| `label_name` | Gene/IGS name with the largest overlap to the window; used as the hotspot label on the figure. |
-| `is_hotspot` | `yes` if the window is selected as a hotspot under the current `--hotspot-mode`/`--hotspot-value`, otherwise `no`. |
+| `start` | 1-based inclusive start coordinate on the reference. |
+| `end` | 1-based inclusive end coordinate on the reference. |
+| `midpoint` | 1-based midpoint used for plotting. |
+| `pi` | Mean nucleotide diversity across valid sites in the window. |
+| `valid_sites` | Number of sites where at least two samples have canonical A/C/G/T bases. |
+| `region` | Plastome region at the window midpoint: `LSC`, `IRb`, `SSC`, or `IRa`. |
+| `label_name` | Reference annotation label with largest overlap to the window. |
+| `is_hotspot` | `yes` when selected by the configured hotspot rule, otherwise `no`. |
 
-### `pi_features.tsv`
+### `candidate_marker_features.tsv`
 
-One row per annotated feature on the reference: genes, tRNAs, rRNAs, and intergenic spacers (IGS). For multi-exon genes, only the individual exon parts are reported (e.g. `trnK-UUU_part1`, `trnK-UUU_part2`); the whole-gene span is omitted to avoid double-counting.
+This 25-column table reports genes, tRNAs, rRNAs, and intergenic spacers projected onto the reference. Multi-part genes are reported as parts to avoid double counting.
 
 | Column | Description |
 | --- | --- |
-| `feature_id` | Unique identifier (gene name, `gene_partN` for multi-exon parts, or `IGS_NNN` for intergenic spacers). |
-| `feature_type` | `gene`, `tRNA`, `rRNA`, or `igs`. |
-| `parent_gene` | Parent gene symbol; for IGS rows this is `<left>|<right>` flanking gene names. |
-| `label_name` | Display name used for figures and grouping (gene symbol or `<left>-<right>` for IGS). |
-| `start` | 1-based inclusive start position on the reference. |
-| `end` | 1-based inclusive end position on the reference. |
-| `strand` | Coding strand: `1`, `-1`, or `0` (IGS / unstranded). |
-| `length_bp` | Feature length in bp on the reference (handles origin-spanning features). |
-| `region` | Plastome region containing the feature midpoint: `LSC`, `IRb`, `SSC`, or `IRa`. |
-| `pi` | Mean per-site nucleotide diversity (Nei & Li 1979) over the feature's valid sites; `NA` if no valid sites. |
+| `feature_id` | Internal stable identifier, used for detail-page routing and payload names. |
+| `feature_type` | Feature class: `gene`, `tRNA`, `rRNA`, or `igs`. |
+| `parent_gene` | Parent gene symbol; for IGS rows, `<left>|<right>` flanking labels. |
+| `label_name` | Display label, usually a gene name or `<left>-<right>` IGS label. |
+| `start` | 1-based inclusive start coordinate on the reference. |
+| `end` | 1-based inclusive end coordinate on the reference. |
+| `strand` | `1`, `-1`, or `0` for unstranded intervals. |
+| `length_bp` | Reference-coordinate feature length in base pairs. |
+| `region` | Plastome region containing the feature midpoint. |
+| `pi` | Mean feature-level Pi over valid sites. |
+| `variable_sites` | Count of columns with at least two canonical nucleotide states. |
+| `indel_sites` | Count of mixed gap/base columns. |
+| `conserved_left_bp` | Conserved contiguous bases immediately upstream of the feature. |
+| `conserved_right_bp` | Conserved contiguous bases immediately downstream of the feature. |
+| `primer_available` | `yes`, `no`, or `NA` depending on primer-design status and success. |
+| `species_resolution` | Fraction of species whose haplotypes are not shared across species. |
+| `unique_haplotype_count` | Number of distinct normalized haplotypes. |
+| `species_specific_haplotype_ratio` | Fraction of haplotypes observed in only one species. |
+| `interspecific_divergence` | Mean valid pairwise p-distance among different species. |
+| `intraspecific_divergence` | Mean valid pairwise p-distance within species; `NA` without within-species pairs. |
+| `nearest_neighbor_discrimination` | Fraction of samples whose nearest neighbor includes the same species; `NA` without within-species pairs. |
+| `barcoding_gap` | Minimum interspecific distance minus maximum intraspecific distance; `NA` without within-species pairs. |
+| `misclassification_risk` | `1 - nearest_neighbor_discrimination`; `NA` without within-species pairs. |
+| `alignment_reliability` | Fraction of columns passing gap, ambiguity, and entropy reliability filters. |
+| `markerseek_score` | Composite 0–100 candidate-marker score. |
 
-### Figures
+The database-route download of this file (`/database/genus/{genus}/download/candidate_marker_features.tsv`) drops `intraspecific_divergence`, `nearest_neighbor_discrimination`, `barcoding_gap`, and `misclassification_risk` so it stays consistent with what is shown in the database UI. The analyzer/job download is unchanged.
 
-- `pi_plot.{pdf,png}` — sliding-window Pi curve with LSC/IRb/SSC/IRa colour bands, gene-strand track, and hotspot peak labels.
-- `similarity_plot.{pdf,png}` — mVISTA-style pairwise identity tracks for every non-reference sample against the reference, with shared LSC/IRb/SSC/IRa colour bands and gene track.
+### `haplotype_assignments.tsv`
 
-## Development
+| Column | Description |
+| --- | --- |
+| `feature_id` | Internal feature identifier. |
+| `sample_name` | Sanitized sample name. |
+| `haplotype_id` | Feature-level haplotype assignment such as `H001`. |
 
-```bash
-python3 -m pip install -e ".[dev]"
-pytest
+### `sample_metadata.tsv`
+
+| Column | Description |
+| --- | --- |
+| `sample_name` | Sanitized sample name used throughout outputs. |
+| `species` | Species inferred from GenBank organism metadata or filename fallback. |
+| `source_path` | Input GenBank path. |
+
+### `primers.tsv`
+
+This 19-column table is written when `--primer-design` is enabled.
+
+| Column | Description |
+| --- | --- |
+| `primer_id` | Primer-pair identifier formatted as `{label_name}_p{rank}`. |
+| `label_name` | Candidate-marker display label associated with the primer pair. |
+| `rank` | Primer-pair rank within the candidate marker. |
+| `fwd_seq` | Forward primer sequence. |
+| `rev_seq` | Reverse primer sequence. |
+| `fwd_len` | Forward primer length. |
+| `rev_len` | Reverse primer length. |
+| `fwd_gc` | Forward primer GC percentage. |
+| `rev_gc` | Reverse primer GC percentage. |
+| `fwd_tm` | Forward primer melting temperature. |
+| `rev_tm` | Reverse primer melting temperature. |
+| `fwd_self_any_th` | Forward primer self-complementarity metric from primer3. |
+| `rev_self_any_th` | Reverse primer self-complementarity metric from primer3. |
+| `primer3_penalty` | primer3 pair penalty. |
+| `target_start` | 1-based target start coordinate. |
+| `target_end` | 1-based target end coordinate. |
+| `amplicon_len` | Mean in-silico amplicon length across successfully amplified samples (rounded to bp). |
+| `cross_species_success_rate` | Fraction of samples in which the primer pair amplifies. |
+| `primer_score` | 0–100 primer-pair score. |
+
+### Other Outputs
+
+| File | Description |
+| --- | --- |
+| `primer_summary.png` | Reference-amplicon length bar chart and cross-sample amplification heatmap. |
+| `pi_plot.{png,pdf}` | Sliding-window Pi plot with plastome regions and hotspot labels. |
+| `similarity_plot.{png,pdf}` | mVISTA-style pairwise similarity plot against the reference. |
+| `feature_payload/*.json` | Internal web payloads for hotspot detail pages. |
+| `results.zip` | Web-server archive of the downloadable result files (PNG figures excluded — they remain inline on the result page). |
+
+## MarkerSeek Score
+
+MarkerSeek uses a normalized weighted sum:
+
+```text
+score = round(100 * Σ_i w_i * n_i, 1)
 ```
+
+For higher-is-better metrics:
+
+```text
+n_i = clip((x_i - lo_i) / (hi_i - lo_i), 0, 1)
+```
+
+For lower-is-better metrics:
+
+```text
+n_i = 1 - clip((x_i - lo_i) / (hi_i - lo_i), 0, 1)
+```
+
+Default weights:
+
+| Metric | Direction | Low | High | Weight |
+| --- | --- | ---: | ---: | ---: |
+| `pi` | higher better | 0 | 0.05 | 0.18 |
+| `variable_site_density` | higher better | 0 | 0.10 | 0.10 |
+| `indel_density` | higher better | 0 | 0.05 | 0.05 |
+| `flanking_conservation_min` | higher better | 0 | 1.0 | 0.12 |
+| `missing_ambig_ratio` | lower better | 0 | 0.20 | 0.05 |
+| `alignment_reliability` | higher better | 0 | 1.0 | 0.10 |
+| `species_resolution` | higher better | 0 | 1.0 | 0.15 |
+| `barcoding_gap` | higher better | -0.02 | 0.05 | 0.10 |
+| `nearest_neighbor_discrimination` | higher better | 0 | 1.0 | 0.10 |
+| `length_suitability` | higher better | 0 | 1.0 | 0.05 |
+
+`variable_site_density` and `indel_density` divide counts by `length_bp`. `flanking_conservation_min` is `min(conserved_left_bp, conserved_right_bp) / 200`. `length_suitability` is trapezoidal: 0 below 300 bp, ramps to 1 from 300–600 bp, holds at 1 from 600–1500 bp, declines to 0.5 at 3000 bp, and to 0 by 5000 bp.
+
+### Effective weights for replicate-free datasets
+
+`barcoding_gap` and `nearest_neighbor_discrimination` are computable only when at least one species has multiple individuals. For collections that store one reference per species — the typical NCBI plastome layout — those metrics are `NA` for every feature, and including them with weight 0.10 each would impose a structural ~20-point ceiling on the score.
+
+When MarkerSeek detects that a metric is `NA` across the entire dataset, it drops that metric from the weight set and **re-normalizes the remaining weights so their sum stays 1.0**. The score remains a valid 0–100 quantity, scaled to the information available. The actual weight set used in a run is recorded on `result.score_weights`. Tests cover both the default-weights path and the replicate-free re-weighting path.
+
+## Primer Design and Scoring
+
+`--primer-design` produces primer pairs only for the curated candidate-marker set described above. For each candidate region:
+
+1. Conserved flanking windows are identified from the genome-wide alignment.
+2. primer3 designs candidate pairs against the **reference** sequence.
+3. Each pair is validated by full in-silico PCR on the **reference** to confirm a unique, length-conformant amplicon.
+4. Universality on the **non-reference** samples is checked with a binding-only fast path: the forward primer and the reverse-complemented reverse primer are searched (anchor-strict / body-fuzzy) and the first valid `(fwd_pos, rev_pos)` combination within `[min_amplicon, max_amplicon]` confirms amplification. The amplicon length collected from this check feeds the cross-species length statistics.
+5. Per-amplicon variable / indel sites are computed by **slicing the genome-wide MAFFT alignment** at the reference amplicon coordinates — no per-pair MAFFT subprocess is spawned.
+
+Pairs are ranked by:
+
+```text
+penalty_term = 1 - clip(primer3_penalty / 5, 0, 1)
+var_density  = amplicon_variable_sites / max(amplicon_mean_len, 1)
+indel_density = amplicon_indel_sites  / max(amplicon_mean_len, 1)
+info_term    = 0.4 * clip(var_density  / 0.10, 0, 1)
+             + 0.2 * clip(indel_density / 0.05, 0, 1)
+primer_score = round(100 * (0.4 * penalty_term
+                          + 0.4 * cross_species_success_rate
+                          + 0.2 * info_term), 1)
+```
+
+If no sample (including the reference) yields a valid single amplicon, the primer score is 0.
+
+## In-Silico PCR
+
+MarkerSeek searches each ungapped sample for the forward primer and the reverse-complemented reverse primer. Matching is fuzzy outside a strict 3' anchor: by default, the terminal 5 bp at the primer 3' end must match exactly, while the rest of the primer body may contain at most one mismatch. Forward / reverse hits are paired only when the reverse hit lies downstream and the resulting amplicon length falls within the configured bounds. On the reference, all valid combinations are enumerated and the shortest is taken; multiple valid combinations mark the reference hit as ambiguous and the pair is rejected. On non-reference samples, the search short-circuits on the first valid combination — only universality and amplicon length are needed there.
+
+## Alignment Reliability
+
+Feature-level alignment reliability is the fraction of alignment columns that pass all three filters:
+
+```text
+gap_ratio < 0.5
+ambiguity_ratio < 0.5
+Shannon_entropy(ACGT frequencies) < 0.95 * log2(4)
+```
+
+This keeps high-gap, high-ambiguity, and nearly saturated columns from inflating candidate quality.
+
+## Hotspot Detail Pages
+
+The web detail page for each candidate marker shows feature metadata, local Pi curve, SNP and indel positions, an alignment viewer, haplotype network, species PCA, and primer ranking. The PCA places samples with hover text carrying the sample and species name to avoid label overlap. If within-species replicate data are absent, the relevant diagnostic fields show "Insufficient replicates" with an explanatory tooltip. The Downloads section (FASTA / CSV) is shown when reaching the page from the analyzer flow and hidden when reaching it from the Database flow.
+
+## Performance and Scaling
+
+Genome-wide MAFFT alignment uses `--retree 2 --maxiterate 0` (FFT-NS-2, progressive only). This keeps the wall-clock close to `O(N log N)` for hundreds of plastomes and avoids the iterative-refinement path (`disttbfast`, `O(N²)`) that `mafft --auto` switches to past ~30 sequences and that can exhaust memory on small servers.
+
+Primer design + in-silico PCR is the second-largest cost. The two structural choices that keep it tractable are: (a) primer3 evaluation only on the reference, with binding-only universality checks on the rest, short-circuiting on the first valid pair per sample; (b) per-amplicon variable / indel statistics computed by reusing the genome-wide alignment, never spawning a per-pair MAFFT subprocess.
+
+Output writing is otherwise dominated by matplotlib figures (Pi, similarity, primer summary). The raw amplicon-FASTA outputs (`primer_amplicons.fasta`, `primer_amplicons_alignment.fasta`) were deliberately removed to drop a per-primer MAFFT subprocess loop that previously ran during `write_analysis_outputs`.
+
+## Citation
+
+If MarkerSeek supports your analysis, cite this repository and the underlying methods and software listed below.
+
+## References
+
+[1] Hebert PDN, Cywinska A, Ball SL, deWaard JR. Biological identifications through DNA barcodes. *Proceedings of the Royal Society B*. 2003;270:313-321.
+
+[2] Meyer CP, Paulay G. DNA barcoding: error rates based on comprehensive sampling. *PLoS Biology*. 2005;3:e422.
+
+[3] Untergasser A, Cutcutache I, Koressaar T, Ye J, Faircloth BC, Remm M, Rozen SG. Primer3: new capabilities and interfaces. *Nucleic Acids Research*. 2012;40:e115.
+
+[4] Katoh K, Standley DM. MAFFT multiple sequence alignment software version 7: improvements in performance and usability. *Molecular Biology and Evolution*. 2013;30:772-780.
+
+[5] Nei M, Li WH. Mathematical model for studying genetic variation in terms of restriction endonucleases. *Proceedings of the National Academy of Sciences USA*. 1979;76:5269-5273.
