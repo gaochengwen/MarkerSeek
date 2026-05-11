@@ -1,10 +1,10 @@
 # MarkerSeek
 
-MarkerSeek is a CLI and web application for discovering plastid-genome regions that are suitable as DNA-barcoding candidates. It aligns annotated GenBank plastomes, estimates nucleotide diversity (Pi), identifies high-polymorphism hotspot regions, scores candidate markers using diagnostic and primer-design evidence, and serves the results through tables, figures, and interactive hotspot-detail pages.
 <img src="MarkerSeek-logo.svg" width="400">
-    MarkerSeek is a command-line toolkit for chloroplast nucleotide diversity analysis. It reads multiple annotated GenBank files, aligns the full plastomes with MAFFT, calculates site-wise and window-wise Pi values, summarises Pi for genes and intergenic spacers, labels high-polymorphism regions, and exports publication-style figures tuned for Nature-size layouts. In addition to the command-line implementation, MarkerSeek is also provided as a web-based tool, available at http://www.bioseqhub.cn/markerseek.
 
-A multi-genus catalogue (`/database`) collects pre-computed analysis drops across thousands of genera, with browse, search, taxonomy filters, and per-genus detail pages reusing the analyzer's hotspot views.
+MarkerSeek is a command-line tool for discovering plastid-genome regions that are suitable as DNA-barcoding candidates. It aligns annotated GenBank plastomes with MAFFT, estimates nucleotide diversity (Pi), identifies high-polymorphism hotspot regions, scores candidate markers using diagnostic and primer-design evidence, and writes the results as tables, figures, and JSON payloads.
+
+In addition to the command-line implementation, MarkerSeek is also provided as a web-based tool, available at http://www.bioseqhub.cn/markerseek.
 
 ## Biological Background
 
@@ -83,82 +83,6 @@ markerseek analyze input_dir \
   --ira 128313:151458
 ```
 
-## Web Usage
-
-Start the web server:
-
-```bash
-markerseek-web --host 0.0.0.0 --port 8000
-```
-
-Open `http://localhost:8000/markerseek`, upload between **2 and 20** GenBank files, choose a reference if needed, set parameters, and submit. The web app returns a job ID that can be pasted into the View Results page. While a job is queued or running the results page auto-refreshes every 60 seconds; finished pages do not refresh. Successful jobs render genome-wide figures, downloadable outputs, a Candidate markers table, and links to per-hotspot detail pages.
-
-The server stores jobs under `markerseek_jobs/` by default and records metadata in SQLite. The navigation also includes an Example page that links to the permanent demonstration job `MSK-EXAMPLE-DEMO` once it has been generated in the local job registry, and a Database page (next section).
-
-| Variable | Description |
-| --- | --- |
-| `MARKERSEEK_WEB_DATA` | Directory for uploads, job outputs, and `jobs.sqlite3`. |
-| `MARKERSEEK_RETENTION_DAYS` | Retention for ordinary jobs; default `7`. |
-| `MARKERSEEK_MAX_UPLOAD_BYTES` | Total upload limit per job; default `20971520`. |
-| `MARKERSEEK_MAFFT_BIN` | MAFFT executable or absolute path; default `mafft`. |
-
-## Database Module
-
-The web application also serves a multi-genus catalogue under `/database`. Each genus is a directory of pre-curated GenBank reference plastomes and, optionally, a sibling directory of pre-computed MarkerSeek outputs. Indexing is one-way — the web server only reads the catalogue and does not run analyses from this surface.
-
-### Directory layout
-
-```
-$MARKERSEEK_DB_ROOT/
-├── taxonomy.csv            # optional, headers: genus,family,order
-├── <Genus>_ref/            # one .gb / .gbk / .genbank per species
-│   ├── Astragalus_alpinus.gb
-│   └── …
-└── <Genus>_results/        # optional MarkerSeek output drop
-    ├── candidate_marker_features.tsv
-    ├── pi_windows.tsv
-    ├── primers.tsv
-    ├── pi_plot.png / pi_plot.pdf
-    ├── similarity_plot.png / similarity_plot.pdf
-    ├── primer_summary.png
-    ├── feature_payload/*.json
-    ├── haplotype_assignments.tsv
-    ├── sample_metadata.tsv
-    └── results.zip
-```
-
-A genus is included when at least one of `<Genus>_ref/` or `<Genus>_results/` is present. The species list and per-species genome-length / GC summary are derived from the `_ref/` GenBank files at request time, so the SQLite catalogue stays compact even at thousands of genera. The optional `taxonomy.csv` (NCBI-style `genus,family,order`) populates the Family / Order columns of the browse table; missing fields are stored as null.
-
-### Indexing
-
-```bash
-export MARKERSEEK_DB_ROOT=/home/ubuntu/plant_plastid
-markerseek-db reindex                      # full rescan
-markerseek-db reindex --genus Astragalus   # incremental (single genus)
-markerseek-db stats                        # catalogue counts
-```
-
-The catalogue is written to `$MARKERSEEK_DB_ROOT/markerseek_database.sqlite3` by default, or to `$MARKERSEEK_DATABASE_DB` if set. The schema includes a `primer_marker_count` column that records how many distinct candidate markers received a primer pair (used in the home-page totals).
-
-### Web routes
-
-| Route | Purpose |
-| --- | --- |
-| `GET /database` | Landing page — Genera indexed / Species / Markers with designed primers, plus alphabet index and search box. |
-| `GET /database/browse?q=&family=&order=&page=` | Paginated genus table with prefix and taxonomy filters. Family and Order columns are always shown. |
-| `GET /database/genus/{genus}` | Genus detail — genome-wide figures (Pi, similarity), candidate-marker table (hotspot labels in genomic order plus the top 10 remaining by score), top 30 primer pairs, downloads, and a Reference species table with per-row "View on NCBI" links. |
-| `GET /database/genus/{genus}/feature/{feature_id}` | Hotspot detail page (re-uses the analyzer feature view). |
-| `GET /database/genus/{genus}/download/{filename}` | Whitelisted result-file download. The `candidate_marker_features.tsv` download is filtered to drop replicate-dependent metric columns (`intraspecific_divergence`, `nearest_neighbor_discrimination`, `barcoding_gap`, `misclassification_risk`); the analyzer download is unchanged. PNG files are not exposed in download lists but remain inline-rendered as page figures. |
-| `GET /database/genus/{genus}/species/{filename}` | Single GenBank reference download (kept for direct deep-links; species rows in the UI link to NCBI Nucleotide via Accession instead). |
-| `GET /database/api/search?q=` | JSON prefix search for autocomplete. |
-
-### Environment variables
-
-| Variable | Description |
-| --- | --- |
-| `MARKERSEEK_DB_ROOT` | Directory holding `<Genus>_ref` / `<Genus>_results` subfolders. Default `/home/ubuntu/plant_plastid`. |
-| `MARKERSEEK_DATABASE_DB` | Override path of the catalogue SQLite file. Defaults to `<MARKERSEEK_DB_ROOT>/markerseek_database.sqlite3`. |
-
 ## `markerseek analyze` Parameters
 
 | Parameter | Default | Description |
@@ -194,7 +118,7 @@ The catalogue is written to `$MARKERSEEK_DB_ROOT/markerseek_database.sqlite3` by
 
 ## Candidate-Marker Selection
 
-`candidate_marker_features.tsv` records every projected feature (gene, tRNA, rRNA, intergenic spacer). The user-facing tables (web result page, example page, database genus page) and `feature_payload/*.json` are restricted to a curated subset:
+`candidate_marker_features.tsv` records every projected feature (gene, tRNA, rRNA, intergenic spacer). The per-feature `feature_payload/*.json` set is restricted to a curated subset:
 
 * every feature whose `label_name` matches a hotspot label rendered on the Pi plot, listed in **genomic order**, plus
 * the **top 10 remaining features by `markerseek_score`**.
@@ -249,8 +173,6 @@ This 25-column table reports genes, tRNAs, rRNAs, and intergenic spacers project
 | `alignment_reliability` | Fraction of columns passing gap, ambiguity, and entropy reliability filters. |
 | `markerseek_score` | Composite 0–100 candidate-marker score. |
 
-The database-route download of this file (`/database/genus/{genus}/download/candidate_marker_features.tsv`) drops `intraspecific_divergence`, `nearest_neighbor_discrimination`, `barcoding_gap`, and `misclassification_risk` so it stays consistent with what is shown in the database UI. The analyzer/job download is unchanged.
-
 ### `haplotype_assignments.tsv`
 
 | Column | Description |
@@ -300,8 +222,8 @@ This 19-column table is written when `--primer-design` is enabled.
 | `primer_summary.png` | Reference-amplicon length bar chart and cross-sample amplification heatmap. |
 | `pi_plot.{png,pdf}` | Sliding-window Pi plot with plastome regions and hotspot labels. |
 | `similarity_plot.{png,pdf}` | mVISTA-style pairwise similarity plot against the reference. |
-| `feature_payload/*.json` | Internal web payloads for hotspot detail pages. |
-| `results.zip` | Web-server archive of the downloadable result files (PNG figures excluded — they remain inline on the result page). |
+| `feature_payload/*.json` | Per-feature JSON payloads with local Pi curve, SNP / indel positions, haplotype network, and PCA inputs for downstream visualisation. |
+| `results.zip` | Archive of the downloadable result files (PNG figures excluded — they are kept alongside the archive). |
 
 ## MarkerSeek Score
 
@@ -386,10 +308,6 @@ Shannon_entropy(ACGT frequencies) < 0.95 * log2(4)
 ```
 
 This keeps high-gap, high-ambiguity, and nearly saturated columns from inflating candidate quality.
-
-## Hotspot Detail Pages
-
-The web detail page for each candidate marker shows feature metadata, local Pi curve, SNP and indel positions, an alignment viewer, haplotype network, species PCA, and primer ranking. The PCA places samples with hover text carrying the sample and species name to avoid label overlap. If within-species replicate data are absent, the relevant diagnostic fields show "Insufficient replicates" with an explanatory tooltip. The Downloads section (FASTA / CSV) is shown when reaching the page from the analyzer flow and hidden when reaching it from the Database flow.
 
 ## Performance and Scaling
 
