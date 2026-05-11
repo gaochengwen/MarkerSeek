@@ -24,3 +24,12 @@ output_*/
 .DS_Store
 .idea/
 .vscode/
+
+# Web application and database catalogue (not part of the public GitHub release)
+src/markerseek/web/
+src/markerseek/database.py
+tests/test_web.py
+tests/test_database.py
+tests/test_feature_detail.py
+deploy/
+README_DEPLOY.md

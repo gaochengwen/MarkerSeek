@@ -71,7 +71,7 @@ PRIMER_COLUMNS = [
     "primer3_penalty",
     "target_start",
     "target_end",
-    "amplicon_len",
+    "amplicon_size",
     "cross_species_success_rate",
     "primer_score",
 ]
@@ -207,7 +207,7 @@ def write_primers_tsv(path: Path, primers) -> None:
                     f"{row.primer3_penalty:.6f}",
                     row.target_start,
                     row.target_end,
-                    int(round(row.amplicon_mean_len)),
+                    f"{row.amplicon_min_len}-{row.amplicon_max_len}",
                     f"{row.cross_species_success_rate:.6f}",
                     f"{row.primer_score:.1f}",
                 ]
