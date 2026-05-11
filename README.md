@@ -289,7 +289,7 @@ This 19-column table is written when `--primer-design` is enabled.
 | `primer3_penalty` | primer3 pair penalty. |
 | `target_start` | 1-based target start coordinate. |
 | `target_end` | 1-based target end coordinate. |
-| `amplicon_len` | Mean in-silico amplicon length across successfully amplified samples (rounded to bp). |
+| `amplicon_size` | In-silico amplicon length range across successfully amplified samples, written as `min-max` in base pairs. |
 | `cross_species_success_rate` | Fraction of samples in which the primer pair amplifies. |
 | `primer_score` | 0–100 primer-pair score. |
 

@@ -138,7 +138,7 @@ def test_primers_tsv_has_expected_columns_and_writes_when_empty(tmp_path) -> Non
     header = lines[0].split("\t")
     assert len(header) == 19
     assert header[:2] == ["primer_id", "label_name"]
-    assert "amplicon_len" in header
+    assert "amplicon_size" in header
     assert "amplicon_min_len" not in header
     assert "amplicon_variable_sites" not in header
     assert lines == ["\t".join(header)]
